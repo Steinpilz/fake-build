@@ -174,6 +174,10 @@ let setup setParams =
             { p with 
                 Project = project
                 OutputPath = param.PublishDir
+                VersionSuffix =  match versionSuffix with
+                                        | Some x -> x
+                                        | None -> ""
+                AdditionalArgs = ["/p:VersionPrefix="+param.VersionPrefix]
             })
         )
         
