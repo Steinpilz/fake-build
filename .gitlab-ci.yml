@@ -1,0 +1,16 @@
+stages:
+  - build
+variables:
+  
+cache:
+  paths:
+  - packages
+before_script:
+  - .paket\paket restore
+
+build:
+  stage: build
+  tags:
+    - msbuild15
+  script: 
+    - call build Target=Build
