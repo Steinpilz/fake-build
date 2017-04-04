@@ -1,5 +1,4 @@
 ﻿module Steinpilz.DevFlow.Fake.Lib
-
 open Fake
 
 type NuGetFeed = {
@@ -16,6 +15,7 @@ type BuildParams = {
     TestOutputDir: string
     SolutionFiles: FileIncludes
     UseNuGetToPack: bool
+    UseDotNetCliToPack: bool
     UseNuGetToRestore: bool
     AssemblyInfoFiles: FileIncludes
 
@@ -53,6 +53,7 @@ let defaultBuildParams =
         SolutionFiles = !!"*.sln"
         XUnitConsoleToolPath = xUnitConsole
         UseNuGetToPack = false
+        UseDotNetCliToPack = false
         UseNuGetToRestore = false
         AssemblyInfoFiles = !!"**/*AssemblyInfo.cs" ++ "**/AssemblyInfo.fs"
         
@@ -163,10 +164,27 @@ let setup setParams =
                 ]
         |> Log "AppBuild-Output: "    
 
+    let packProjectsWithDotnetCli projects (versionSuffix: Option<string>) = 
+        tracefn "Packing project %A" projects
+        CreateDir param.PublishDir
+
+        projects
+        |> Seq.iter (fun project -> 
+            DotNetCli.Pack(fun p -> 
+            { p with 
+                Project = project
+                OutputPath = param.PublishDir
+            })
+        )
+        
+
     let packProjects =
         if param.UseNuGetToPack 
         then packProjectsWithNuget
-        else packProjectsWithMsBuild
+        else 
+            if param.UseDotNetCliToPack 
+            then packProjectsWithDotnetCli
+            else packProjectsWithMsBuild
 
 
     let publish() =
