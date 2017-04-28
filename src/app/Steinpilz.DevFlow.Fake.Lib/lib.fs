@@ -29,6 +29,7 @@ type BuildParams = {
     VersionSuffix: string
 
     NuGetFeed: NuGetFeed
+  //  NugetTool: bool
 }
 
 
@@ -65,10 +66,11 @@ let defaultBuildParams =
         VersionSuffix = getBuildParamOrDefault "vs" ""
 
         NuGetFeed = 
-        {
-            EndpointUrl = "https://api.nuget.org/v3/index.json"
-            ApiKey = None
-        }
+            {
+                EndpointUrl = "https://api.nuget.org/v3/index.json"
+                ApiKey = None
+            }
+      //  NugetTool = false
     }
 
 let setup setParams =
@@ -111,7 +113,12 @@ let setup setParams =
             info.WorkingDirectory <- dir
             info.Arguments <- args) nugetParams.TimeOut
         
-
+    let runDotNet args dir =
+        ExecProcess (fun info -> 
+            info.FileName <- "dotnet"
+            info.WorkingDirectory <- dir
+            info.Arguments <- args) nugetParams.TimeOut
+        
     let packProjectsWithNuget projects (versionSuffix: Option<string>) =
         CreateDir param.PublishDir
 
@@ -132,27 +139,30 @@ let setup setParams =
 
         let suffixArg = match versionSuffix with
                         | None -> ""
-                        | Some x -> sprintf "-suffix %s" x
-
-        
+                        | Some x -> sprintf " -suffix %s" x
+                
+        let toolArg = if false then "-Tool " else "-IncludeReferencedProjects "
 
         projects
             |> Seq.iter (fun (projPath) ->
                 let args = 
-                    sprintf "pack %s -Build -includereferencedprojects -version %s %s -properties %s" 
+                    sprintf "pack %s -Build -version %s%s %s -properties %s" 
                         projPath
                         mainVersion 
                         suffixArg
+                        toolArg
                         "globalversion=" + fullVersion
                 
                 runNuGet args <| param.PublishDir |> ignore
                 ()
             )
+
     let packProjectsWithMsBuild projects (versionSuffix: Option<string>) = 
         tracefn "Packing project %A" projects
         projects
         |> MSBuild param.PublishDir "Restore;Pack" 
                 [
+                    "PackageOutputPath", param.PublishDir
                     "DebugSymbols", "false"
                     "DebugType", "Full"
                     "Configuration", "Release"
@@ -168,19 +178,27 @@ let setup setParams =
         tracefn "Packing project %A" projects
         CreateDir param.PublishDir
 
+        let vs =  match versionSuffix with
+                    | Some x -> x
+                    | None -> "" 
+        
         projects
         |> Seq.iter (fun project -> 
             DotNetCli.Pack(fun p -> 
             { p with 
                 Project = project
                 OutputPath = param.PublishDir
-                VersionSuffix =  match versionSuffix with
-                                        | Some x -> x
-                                        | None -> ""
-                AdditionalArgs = ["/p:VersionPrefix="+param.VersionPrefix]
+                VersionSuffix = vs
+                AdditionalArgs = 
+                    [
+                        "/p:VersionPrefix="+param.VersionPrefix
+                        "/p:GlobalVersion="+param.VersionPrefix + vs
+                        "/p:vs="+vs
+                        "/p:vp="+param.VersionPrefix
+
+                    ]
             })
         )
-        
 
     let packProjects =
         if param.UseNuGetToPack 
@@ -316,4 +334,4 @@ let setup setParams =
 
     ()
 
-    RunTargetOrDefault "Watch"
+    param

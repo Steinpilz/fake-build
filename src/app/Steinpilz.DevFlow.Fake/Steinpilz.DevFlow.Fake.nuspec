@@ -1,13 +1,16 @@
 <?xml version="1.0"?>
 <package >
   <metadata>
-    <id>$id$</id>
-    <version>$globalversion$</version>
-    <title>$title$</title>
-    <authors>ivanbianko steinpilz</authors>
-    <owners>steinpilz ivanbianko</owners>
+    <id>Steinpilz.DevFlow.Fake</id>
+    <version>@build.number@</version>
+    <title>Steinpilz DevFlow scripts</title>
+    <authors>steinpilz, ivanbianko</authors>
+    <owners>steinpilz, ivanbianko</owners>
+    <projectUrl>https://github.com/steinpilz/fake-build</projectUrl>    
+    <description>Amin code generator</description>
+    <releaseNotes></releaseNotes>
     <copyright>Copyright 2017</copyright>
-    <tags>fake build scripts open source libraries</tags>
-    <description>Contains common build scripts to build .net open source libraries</description>
+    <tags>fake build</tags>
   </metadata>
+  @files@
 </package>
