@@ -281,8 +281,10 @@ let setup setParams =
     )
 
     Target "Pack" (fun _ ->
-        packProjects param.PublishProjects None
-        
+        let vs = match param.VersionSuffix with
+                 | null | "" -> None
+                 | s -> Some s
+        packProjects param.PublishProjects vs    
     )
 
     Target "Pack-Pre" (fun _ -> 
@@ -290,6 +292,9 @@ let setup setParams =
                                                      | "" -> "no-version"
                                                      | x -> x ) )
     )
+
+    Target "Publish" <| fun _ ->
+        publish()
 
     Target "Publish-Release" (fun _ ->
         publish()

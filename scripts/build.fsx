@@ -32,18 +32,12 @@ let packTool version =
             ]
     }) ("src/app/Steinpilz.DevFlow.Fake/Steinpilz.DevFlow.Fake.nuspec" |> FullName)    
 
-Target "Pack-Tool-Pre" (fun _ -> 
-    packTool <| param.VersionPrefix + "-" + param.VersionSuffix
-)
-
 Target "Pack-Tool" (fun _ -> 
-    packTool <| param.VersionPrefix
+    let vs = match param.VersionSuffix with
+                 | null | "" -> ""
+                 | s -> "-" + s
+    packTool <| param.VersionPrefix + vs
 )
-
-"Build" 
-    ==> "Pack-Tool-Pre"
-    ==> "Pack-Pre" 
-    |> ignore
 
 "Build" 
     ==> "Pack-Tool"
