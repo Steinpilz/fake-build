@@ -333,6 +333,10 @@ let setup setParams =
         ==> "Publish-Release"
         |> ignore
 
+    "Pack"
+        ==> "Publish"
+        |> ignore
+
     "Pack-Pre"
         ==> "Publish-Pre"
         |> ignore
