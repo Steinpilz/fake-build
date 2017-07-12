@@ -322,10 +322,12 @@ let setup setParams =
         |> ignore
 
     "Clean"
+        ==> "Restore"
         ==> "Pack-Pre"
         |> ignore
 
     "Clean"
+        ==> "Restore"
         ==> "Pack"
         |> ignore
 
