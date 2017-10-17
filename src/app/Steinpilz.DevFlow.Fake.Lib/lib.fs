@@ -39,7 +39,7 @@ let defaultBuildParams =
     let buildDir = artifactsDir @@ "build"
     let testDir = artifactsDir @@ "test"
     let publishDir = artifactsDir @@ "publish"
-    let testDlls = testDir @@ "*.Tests.dll"
+    let testDlls = testDir @@ "**\\" @@ "*.Tests.dll"
     let testOutputDir = testDir @@ "output"
 
     let xUnitConsole = @"packages\xunit.runner.console\tools\xunit.console.exe"
@@ -79,13 +79,21 @@ let setup setParams =
 
     let runTests() = 
         tracefn("Running tests...")
-        param.TestProjects
-        |> MSBuild param.TestDir "Build" 
-                [
-                    "Configuration", "Debug"
-                    "Platform", "Any CPU"
-                ]
-        |> Log "AppBuild-Output: " 
+
+        // we put each test project to its own folder, 
+        // while they could have different dependencies (versions)
+        for testProjectPath in param.TestProjects do
+            let testProjectName = FileHelper.filename testProjectPath
+            let outputDir = param.TestDir @@ testProjectName
+            FileHelper.CreateDir outputDir
+
+            [testProjectPath]
+            |> MSBuild outputDir "Build" 
+                    [
+                        "Configuration", "Debug"
+                        "Platform", "Any CPU"
+                    ]
+            |> Log "AppBuild-Output: " 
 
         FileHelper.CreateDir param.TestOutputDir
     
@@ -93,8 +101,8 @@ let setup setParams =
             |> Fake.Testing.XUnit2.xUnit2 (fun p ->  
                 { p with
                     ToolPath = param.XUnitConsoleToolPath
-                    HtmlOutputPath = Some (param.TestOutputDir + "test-result.html")
-                    NUnitXmlOutputPath = Some (param.TestOutputDir + "nunit-test-result.xml")
+                    HtmlOutputPath = Some (param.TestOutputDir @@ "test-result.html")
+                    NUnitXmlOutputPath = Some (param.TestOutputDir @@ "nunit-test-result.xml")
                     Parallel = Testing.XUnit2.ParallelMode.All
                 } 
                 )
