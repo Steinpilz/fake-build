@@ -1,5 +1,6 @@
 ﻿module Steinpilz.DevFlow.Fake.Lib
 open Fake
+open System
 
 type NuGetFeed = {
     EndpointUrl: string
@@ -20,6 +21,7 @@ type BuildParams = {
     AssemblyInfoFiles: FileIncludes
 
     XUnitConsoleToolPath: string
+    XUnitTimeOut: TimeSpan option
         
     AppProjects: FileIncludes
     TestProjects: FileIncludes
@@ -53,6 +55,7 @@ let defaultBuildParams =
         TestOutputDir = testOutputDir
         SolutionFiles = !!"*.sln"
         XUnitConsoleToolPath = xUnitConsole
+        XUnitTimeOut = None
         UseNuGetToPack = false
         UseDotNetCliToPack = false
         UseNuGetToRestore = false
@@ -104,6 +107,9 @@ let setup setParams =
                     HtmlOutputPath = Some (param.TestOutputDir @@ "test-result.html")
                     NUnitXmlOutputPath = Some (param.TestOutputDir @@ "nunit-test-result.xml")
                     Parallel = Testing.XUnit2.ParallelMode.All
+                    TimeOut =  match param.XUnitTimeOut with
+                                | None -> p.TimeOut
+                                | Some x -> x
                 } 
                 )
 
