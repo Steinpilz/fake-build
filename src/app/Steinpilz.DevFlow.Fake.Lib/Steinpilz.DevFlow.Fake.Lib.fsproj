@@ -53,6 +53,7 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <None Include="Script.fsx" />
+    <Compile Include="pub.fs" />
     <Compile Include="lib.fs" />
     <Content Include="packages.config" />
   </ItemGroup>

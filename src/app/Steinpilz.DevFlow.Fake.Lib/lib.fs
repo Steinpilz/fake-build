@@ -1,6 +1,7 @@
 ﻿module Steinpilz.DevFlow.Fake.Lib
 open Fake
 open System
+open Pub
 
 type NuGetFeed = {
     EndpointUrl: string
@@ -321,6 +322,8 @@ let setup setParams =
     //Target "Publish-Tags" (fun _ ->
     //    Git.Branches.
     //)
+
+    Pub.setup id
 
     Target "Default" <| DoNothing
 
