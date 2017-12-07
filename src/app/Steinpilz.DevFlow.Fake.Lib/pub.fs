@@ -44,8 +44,8 @@ let envWrite dir env =
     let fileLines =
         env
         |> Map.toSeq
-        |> Seq.sortBy (fun (k, (v, i)) -> i)
-        |> Seq.map (fun (k, (v, i)) -> k + "=" + v)
+        |> Seq.sortBy (fun (_, (_, i)) -> i)
+        |> Seq.map (fun (k, (v, _)) -> k + "=" + v)
     WriteFile path fileLines
 
 let envTryGet k env =
@@ -200,7 +200,7 @@ type Cmd =
 
 let parseArgs args =
     let parseReleaseInc = function
-    | Prefix "patch" _ -> Patch
+    | Prefix "pat" _ -> Patch
     | Prefix "min" _ ->  Minor
     | Prefix "maj" _ -> Major
     | x -> failwithf "can not handle '%s', you can use 'pub help' command (or just 'pub' without a command)" x
@@ -265,10 +265,10 @@ let setup setParams =
             log "If you think that a preview should be released, just type 'pub release', it will fetch the upstream, run tests, set a version tag and make a push (with tags) to the upstream."
             log "It's important that all commands run 'Publish' target to deploy each version to NuGet."
             log "Also you can shorten 'pub preXyz' with just 'pub xyz' (e.g. 'pub patch') if you do not need a preview of course."
-            log "You can use a prefix only, minor=min, major=maj, release=rel."
+            log "You can use a prefix only, patch=pat, minor=min, major=maj, release=rel."
             log ""
             log "# Important info for understanding the workflow"
-            log "Brief: Pub realization assumes that you'll make some changes, stage them, then call Pub with a commit message; then you can use Pub without a message to just change a version of the last commit (and deploy it of course)."
+            log "Brief: Pub realization assumes that you'll make some changes, stage them, then call Pub with a commit message; then you can use Pub without a message to just change a version of the last commit (and deploy it like all cmds do of course)."
             log "You can pass a commit message, so 'pub patch \"some msg\"' will create a commit (it will not call smth like 'git add .', you should do it yourself)."
             log "If a commit message is passed then Pub will always create a new commit and it will always amend the last commit if a commit message is not passed."
             log "Because of that a stage must be nonempty if a commit message is passed and it must be empty if a commit message is not passed."
