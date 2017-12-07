@@ -192,47 +192,56 @@ type VerInc =
 | PreviewNext
 | PreviewRelease
 
-type Cmd = { VerInc: VerInc; Msg: string option; }
+type Pub = { VerInc: VerInc; Msg: string option; }
+
+type Cmd =
+| Pub of Pub
+| Help
 
 let parseArgs args =
-    let parsePureIncVer = function
+    let parseReleaseInc = function
     | Prefix "patch" _ -> Patch
     | Prefix "min" _ ->  Minor
     | Prefix "maj" _ -> Major
-    | x -> failwithf "can not handle '%s', supported: patch, minor, major" x
+    | x -> failwithf "can not handle '%s', you can use 'pub help' command (or just 'pub' without a command)" x
 
     let fArg =
         args
         |> List.tryItem 0
-        |> optionDefaultWith (fun _ -> failwith "you have not passed a cmd, you can use patch, minor, major, prePatch, preMinor, preMajor, pre, release; you can use it like ./build pub pre or ./build pub pre \"a message here\"")
-        |> toLower
-
-    let verInc =
-        match fArg with
-        | Prefix "pre" _ ->
-            match fArg.Substring(3) with
-            | "" -> PreviewNext
-            | fArgSuff -> PreviewNew (fArgSuff |> parsePureIncVer)
-        | Prefix "rel" _ -> PreviewRelease
-        | _ -> ReleaseInc (fArg |> parsePureIncVer)
+        |> Option.map toLower
     
-    let msg = args |> List.tryItem 1
+    match fArg with
+    | None -> Help
+    | Some fArg ->
+        match fArg with
+        | "help" -> Help
+        | _ ->
+            let verInc =
+                match fArg with
+                | Prefix "pre" _ ->
+                    match fArg.Substring(3) with
+                    | "" -> PreviewNext
+                    | fArgSuff -> PreviewNew (fArgSuff |> parseReleaseInc)
+                | Prefix "rel" _ -> PreviewRelease
+                | _ -> ReleaseInc (fArg |> parseReleaseInc)
+    
+            let msg = args |> List.tryItem 1
 
-    { VerInc = verInc; Msg = msg; }
+            Pub ({ VerInc = verInc; Msg = msg; })
 
 
 let ensureVerIsRelease msg ver = if Option.isNone ver.PreRelease then ver else failwith msg
 let ensureVerIsPreRelease msg ver = if Option.isSome ver.PreRelease then ver else failwith msg
 
 let makeReleaseInc relInc ver = 
-    let ver = ver |> ensureVerIsRelease "you can not change version until the current version is preview, you can use 'pre' cmd to inc a preview version or 'release' cmd to release a preview"
+    let ver = ver |> ensureVerIsRelease "you can not change version until the current version is a preview, you can use 'pre' cmd to inc a preview version or 'release' cmd to release a preview"
     match relInc with
     | Patch -> incPatch ver
     | Minor -> incMinor ver
     | Major -> incMajor ver
 
 let makeVerInc verInc ver =
-    let previewEnsure = ensureVerIsPreRelease "you can not use pre-prelease cmds ('pre', 'release') if the current version is not preview, you need to use prePatch, preMinor or preMajor to create a preview"
+    let previewEnsure = ensureVerIsPreRelease "you can not use pre-prelease cmds ('pre', 'release') if the current version is not a preview, you need to use prePatch, preMinor or preMajor to create a preview"
     match verInc with
     | ReleaseInc x -> ver |> makeReleaseInc x
     | PreviewNew x ->  ver |> makeReleaseInc x |> incPrev
@@ -246,54 +255,75 @@ let setup setParams =
     Target "Pub" <| (fun _ -> 
         let rep = p.WorkingDir
         let cmd = parseArgs p.Args
-        let isRelease =
-            match cmd.VerInc with
-            | PreviewNew _ | PreviewNext -> false
-            | ReleaseInc _ | PreviewRelease -> true
 
-        log "init"
-        let oldEnv = envRead rep
-        let oldVer = readVerFromEnv oldEnv
-        let newVer = oldVer |> makeVerInc cmd.VerInc
-        let newEnv = newVer |> writeVerToEnv oldEnv
+        match cmd with
+        | Help -> 
+            log "# How to use Pub"
+            log "Well, if you want to make a preview just type 'pub prePatch', 'pub preMinor', 'pub preMajor', it will fetch the upstream (i.e. the remote branch) for validation and will not run tests."
+            log "All commands are case-insensitive, so a big letter just for readibility."
+            log "Ok, now you have preview001, you want to make next preview, you can just type 'pub pre' for that, it does not fetch the upstream and does not run tests."
+            log "If you think that a preview should be released, just type 'pub release', it will fetch the upstream, run tests, set a version tag and make a push (with tags) to the upstream."
+            log "It's important that all commands run 'Publish' target to deploy each version to NuGet."
+            log "Also you can shorten 'pub preXyz' with just 'pub xyz' (e.g. 'pub patch') if you do not need a preview of course."
+            log "You can use a prefix only, minor=min, major=maj, release=rel."
+            log ""
+            log "# Important info for understanding the workflow"
+            log "Brief: Pub realization assumes that you'll make some changes, stage them, then call Pub with a commit message; then you can use Pub without a message to just change a version of the last commit (and deploy it of course)."
+            log "You can pass a commit message, so 'pub patch \"some msg\"' will create a commit (it will not call smth like 'git add .', you should do it yourself)."
+            log "If a commit message is passed then Pub will always create a new commit and it will always amend the last commit if a commit message is not passed."
+            log "Because of that a stage must be nonempty if a commit message is passed and it must be empty if a commit message is not passed."
+        | Pub pub ->
+            let verInc = pub.VerInc
+            let msg = pub.Msg
         
-        log "validation"
-        match cmd.VerInc with
-        | PreviewNext -> ()
-        | _ ->  gitFetch rep
-        let status = gitGetSyncStatus rep
-        if status.Behind then failwith "there are unmerged commits on the upstream branch, merge them first" else ()
-        match cmd.Msg with
-        | Some _ ->
-            if gitIsHeadTagged rep then rep |> gitEnsureStageNonempty "there is a tag on the last commit (that's release) and there are no staged changes, you can not make a release without changes" else ()
-        | None ->
-            match status.Ahead with
-            | true ->
-                gitEnsureHeadWithoutTags "there is a tag on the last commit, add a commit message or create a commit manually" rep
-                gitEnsureStageEmpty "there are some changes (stage is not empty), add a commit message or create a commit manually" rep // "because you have not added a message the build going to amend the last commit and, but it is not so" rep
-            | false ->
-                failwith "the last commit exists on the upstream, add a commit message or create a commit manually"
-        
-        if isRelease then
-            log "tests"
-            TargetHelper.run "Test"
-        else ()
+            let isRelease =
+                match verInc with
+                | PreviewNew _ | PreviewNext -> false
+                | ReleaseInc _ | PreviewRelease -> true
 
-        log ".env updating, commiting"
-        envWrite rep newEnv
-        StageFile rep envFileName |> ignore
-        match cmd.Msg with
-        | Some x ->
-            gitCommit rep x
-        | None ->
-            gitCommitAmend rep
+            log "init"
+            let oldEnv = envRead rep
+            let oldVer = oldEnv |> readVerFromEnv
+            let newVer = oldVer |> makeVerInc verInc
+            let newEnv = newVer |> writeVerToEnv oldEnv
         
-        if isRelease then
-            log "tagging, pushing, publishing"
-            tag rep (verToTagStr newVer)
-            //gitPush rep
-            //TargetHelper.run "Publish"
-        else ()
+            log "validation"
+            match verInc with
+            | PreviewNext -> ()
+            | _ ->  rep |> gitFetch
+            let status = rep |> gitGetSyncStatus
+            if status.Behind then failwith "there are unmerged commits on the upstream branch, merge them first"
+            match msg with
+            | Some _ ->
+                rep |> gitEnsureStageNonempty "there are no staged changes, you can not make a commit without changes"
+            | None ->
+                match status.Ahead with
+                | true ->
+                    rep |> gitEnsureHeadWithoutTags "there is a tag on the last commit, add a commit message or create a commit manually"
+                    rep |> gitEnsureStageEmpty "there are some changes (the stage is not empty), add a commit message or create a commit manually"
+                | false ->
+                    failwith "the last commit exists on the upstream, add a commit message or create a commit manually"
+        
+            if isRelease then
+                log "tests"
+                TargetHelper.run "Test"
 
-        ()
+            log ".env updating, commiting"
+            newEnv |> envWrite rep
+            envFileName |> StageFile rep |> ignore
+            match msg with
+            | Some msg ->
+                gitCommit rep msg
+            | None ->
+                gitCommitAmend rep
+        
+            if isRelease then
+                log "tagging, pushing"
+                verToTagStr newVer |> tag rep
+                rep |> gitPush
+
+            log "publishing"
+            TargetHelper.run "Publish"
+
+            ()
     )
