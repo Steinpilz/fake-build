@@ -1,11 +1,13 @@
 ﻿module Steinpilz.DevFlow.Fake.Lib
 open Fake
 open System
+open Env
 open Pub
+
 
 type NuGetFeed = {
     EndpointUrl: string
-    ApiKey: string option 
+    ApiKey: string option
 }
 
 type BuildParams = {
@@ -23,30 +25,38 @@ type BuildParams = {
 
     XUnitConsoleToolPath: string
     XUnitTimeOut: TimeSpan option
-        
+
     AppProjects: FileIncludes
     TestProjects: FileIncludes
     PublishProjects: FileIncludes
 
-    VersionPrefix: string
-    VersionSuffix: string
+    VersionPrefix: string option
+    VersionSuffix: string option
+    AssemblyVersion: string option
 
     NuGetFeed: NuGetFeed
-  //  NugetTool: bool
+    //  NugetTool: bool
 }
 
 
-let defaultBuildParams = 
+let defaultBuildParams =
+    "." |> FullName |> Env.read |> setEnvVars
+
     // Properties
     let artifactsDir = ".artifacts" |> FullName
     let buildDir = artifactsDir @@ "build"
     let testDir = artifactsDir @@ "test"
     let publishDir = artifactsDir @@ "publish"
-    let testDlls = testDir @@ "**\\" @@ "*.Tests.dll"
+    let testDlls = testDir @@ "**/" @@ "*.Tests.dll"
     let testOutputDir = testDir @@ "output"
 
-    let xUnitConsole = @"packages\xunit.runner.console\tools\xunit.console.exe"
-        
+    let xUnitConsole = @"packages/xunit.runner.console/tools/net452/xunit.console.exe"
+
+    let assemblyVersion = environVarOrNone "AssemblyVersion"
+    let noneIfEmpty = Option.filter (String.IsNullOrEmpty >> not)
+    let vp = environVarOrNone "vp" |> noneIfEmpty
+    let vs = environVarOrNone "vs" |> noneIfEmpty
+
     {
         ArtifactsDir = artifactsDir
         BuildDir = buildDir
@@ -58,33 +68,34 @@ let defaultBuildParams =
         XUnitConsoleToolPath = xUnitConsole
         XUnitTimeOut = None
         UseNuGetToPack = false
-        UseDotNetCliToPack = false
+        UseDotNetCliToPack = true
         UseNuGetToRestore = false
         AssemblyInfoFiles = !!"**/*AssemblyInfo.cs" ++ "**/AssemblyInfo.fs"
-        
-        AppProjects = !!"src/app/**/*.csproj"
-        TestProjects = !!"src/test/**/*Tests.csproj"
+
+        AppProjects = !!"src/app/**/*.(csproj|fsproj)"
+        TestProjects = !!"src/test/**/*Tests.(csproj|fsproj)"
         PublishProjects = !!"not-found"
 
-        VersionPrefix = getBuildParamOrDefault "vp" ""
-        VersionSuffix = getBuildParamOrDefault "vs" ""
+        VersionPrefix = vp
+        VersionSuffix = vs
+        AssemblyVersion = assemblyVersion
 
-        NuGetFeed = 
+        NuGetFeed =
             {
                 EndpointUrl = "https://api.nuget.org/v3/index.json"
                 ApiKey = None
             }
-      //  NugetTool = false
+        //  NugetTool = false
     }
 
 let setup setParams =
     let param = defaultBuildParams |> setParams
-        
 
-    let runTests() = 
+
+    let runTests() =
         tracefn("Running tests...")
 
-        // we put each test project to its own folder, 
+        // we put each test project to its own folder,
         // while they could have different dependencies (versions)
         for testProjectPath in param.TestProjects do
             let testProjectName = FileHelper.filename testProjectPath
@@ -92,27 +103,28 @@ let setup setParams =
             FileHelper.CreateDir outputDir
 
             [testProjectPath]
-            |> MSBuild outputDir "Build" 
+            |> MSBuild outputDir "Build"
                     [
                         "Configuration", "Debug"
                         "Platform", "Any CPU"
                     ]
-            |> Log "AppBuild-Output: " 
+            |> Log "AppBuild-Output: "
 
         FileHelper.CreateDir param.TestOutputDir
-    
-        !! param.TestDlls
-            |> Fake.Testing.XUnit2.xUnit2 (fun p ->  
-                { p with
-                    ToolPath = param.XUnitConsoleToolPath
-                    HtmlOutputPath = Some (param.TestOutputDir @@ "test-result.html")
-                    NUnitXmlOutputPath = Some (param.TestOutputDir @@ "nunit-test-result.xml")
-                    Parallel = Testing.XUnit2.ParallelMode.All
-                    TimeOut =  match param.XUnitTimeOut with
-                                | None -> p.TimeOut
-                                | Some x -> x
-                } 
-                )
+
+        let testDlls = !! param.TestDlls |> List.ofSeq
+        if not (List.isEmpty testDlls) then
+            testDlls
+                |> Fake.Testing.XUnit2.xUnit2 (fun p ->
+                    { p with
+                        ToolPath = param.XUnitConsoleToolPath
+                        HtmlOutputPath = Some (param.TestOutputDir @@ "test-result.html")
+                        NUnitXmlOutputPath = Some (param.TestOutputDir @@ "nunit-test-result.xml")
+                        Parallel = Testing.XUnit2.ParallelMode.All
+                        TimeOut = param.XUnitTimeOut |> Option.defaultValue p.TimeOut
+                    }
+                    )
+        else tracefn "There are no test dlls"
 
     let ensureSuccessExitCode code =
         if code > 0 then
@@ -123,103 +135,94 @@ let setup setParams =
     let nugetParams = NuGetDefaults()
 
     let runNuGet args dir =
-        ExecProcess (fun info -> 
+        ExecProcess (fun info ->
             info.FileName <- nugetParams.ToolPath
             info.WorkingDirectory <- dir
-            info.Arguments <- args) nugetParams.TimeOut
-        
+            info.Arguments <- args
+        ) nugetParams.TimeOut
+
     let runDotNet args dir =
-        ExecProcess (fun info -> 
+        ExecProcess (fun info ->
             info.FileName <- "dotnet"
             info.WorkingDirectory <- dir
-            info.Arguments <- args) nugetParams.TimeOut
-        
-    let packProjectsWithNuget projects (versionSuffix: Option<string>) =
-        CreateDir param.PublishDir
+            info.Arguments <- args
+        ) nugetParams.TimeOut
 
-        let mainVersion = param.VersionPrefix
-        let assemblyVersion = environVarOrNone "AssemblyVersion"
-        match assemblyVersion with
-        | None -> ()
-        | Some v -> ReplaceAssemblyInfoVersionsBulk param.AssemblyInfoFiles (fun f -> 
-            { f with 
+    let packProjectsWithNuget projects versionSuffix =
+        CreateDir param.PublishDir
+        let mainVersion = param.VersionPrefix |> Option.defaultValue ""
+
+        param.AssemblyVersion |> Option.iter (fun v ->
+            ReplaceAssemblyInfoVersionsBulk param.AssemblyInfoFiles (fun f ->
+            { f with
                 AssemblyVersion = v
                 AssemblyFileVersion = v
-            }
+            })
         )
 
-        let fullVersion = match param.VersionSuffix with 
-                            | "" -> mainVersion
-                            | x  -> (mainVersion + "-"+ x)
+        let fullVersion = mainVersion + (param.VersionSuffix |> Option.map ((+) "-") |> Option.defaultValue "")
 
-        let suffixArg = match versionSuffix with
-                        | None -> ""
-                        | Some x -> sprintf " -suffix %s" x
-                
+        let suffixArg = versionSuffix |> Option.map (sprintf " -suffix %s") |> Option.defaultValue ""
+
         let toolArg = if false then "-Tool " else "-IncludeReferencedProjects "
 
         projects
             |> Seq.iter (fun (projPath) ->
-                let args = 
-                    sprintf "pack %s -Build -version %s%s %s -properties %s" 
+                let args =
+                    sprintf "pack %s -Build -version %s%s %s -properties %s"
                         projPath
-                        mainVersion 
+                        mainVersion
                         suffixArg
                         toolArg
                         "globalversion=" + fullVersion
-                
-                runNuGet args <| param.PublishDir |> ignore
-                ()
+
+                param.PublishDir |> runNuGet args |> ignore
             )
 
-    let packProjectsWithMsBuild projects (versionSuffix: Option<string>) = 
+    let packProjectsWithMsBuild projects versionSuffix =
         tracefn "Packing project %A" projects
         projects
-        |> MSBuild param.PublishDir "Restore;Pack" 
+        |> MSBuild param.PublishDir "Restore;Pack"
                 [
                     "PackageOutputPath", param.PublishDir
                     "DebugSymbols", "false"
                     "DebugType", "Full"
                     "Configuration", "Release"
                     "Platform", "Any CPU"
-                    "VersionPrefix", param.VersionPrefix
-                    "VersionSuffix",    match versionSuffix with
-                                        | Some x -> x
-                                        | None -> ""
+                    "VersionPrefix", param.VersionPrefix |> Option.defaultValue ""
+                    "VersionSuffix", versionSuffix |> Option.defaultValue ""
                 ]
-        |> Log "AppBuild-Output: "    
+        |> Log "AppBuild-Output: "
 
-    let packProjectsWithDotnetCli projects (versionSuffix: Option<string>) = 
+    let packProjectsWithDotnetCli projects versionSuffix=
         tracefn "Packing project %A" projects
         CreateDir param.PublishDir
 
-        let vs =  match versionSuffix with
-                    | Some x -> x
-                    | None -> "" 
-        
+        let vp = param.VersionPrefix |> Option.defaultValue ""
+        let vs = versionSuffix |> Option.defaultValue ""
+
         projects
-        |> Seq.iter (fun project -> 
-            DotNetCli.Pack(fun p -> 
-            { p with 
+        |> Seq.iter (fun project ->
+            DotNetCli.Pack(fun p ->
+            { p with
                 Project = project
                 OutputPath = param.PublishDir
                 VersionSuffix = vs
-                AdditionalArgs = 
-                    [
-                        "/p:VersionPrefix="+param.VersionPrefix
-                        "/p:GlobalVersion="+param.VersionPrefix + vs
-                        "/p:vs="+vs
-                        "/p:vp="+param.VersionPrefix
-
-                    ]
+                AdditionalArgs =
+                [
+                    "/p:VersionPrefix=" + vp
+                    "/p:GlobalVersion=" + vp + vs
+                    "/p:vs=" + vs
+                    "/p:vp=" + vp
+                ]
             })
         )
 
     let packProjects =
-        if param.UseNuGetToPack 
+        if param.UseNuGetToPack
         then packProjectsWithNuget
-        else 
-            if param.UseDotNetCliToPack 
+        else
+            if param.UseDotNetCliToPack
             then packProjectsWithDotnetCli
             else packProjectsWithMsBuild
 
@@ -228,62 +231,58 @@ let setup setParams =
         tracefn "publishing..."
 
         let parameters = NuGetDefaults()
-        let nugetPackageFiles = 
+        let nugetPackageFiles =
             !!(param.PublishDir @@ "*.nupkg")
             -- (param.PublishDir @@ "*.symbols.nupkg")
 
         nugetPackageFiles
-        |> Seq.iter (fun file -> 
+        |> Seq.iter (fun file ->
             let args =
-                sprintf "push %s -Source %s" 
-                        file 
+                sprintf "push %s -Source %s"
+                        file
                         param.NuGetFeed.EndpointUrl
 
-            let apiKeyArgs = 
-                match param.NuGetFeed.ApiKey with 
-                | Some apiKey -> sprintf " -ApiKey %s" apiKey
-                | None -> ""
+            let apiKeyArgs = param.NuGetFeed.ApiKey |> Option.map (sprintf " -ApiKey %s") |> Option.defaultValue ""
 
             runNuGet (args + apiKeyArgs) param.PublishDir |> ignore
         )
 
     // Targets
-    Target "Clean" (fun _ -> 
+    Target "Clean" (fun _ ->
         CleanDir param.ArtifactsDir
     )
 
-    Target "Restore" (fun _ -> 
+    Target "Restore" (fun _ ->
         if param.UseNuGetToRestore then
             param.SolutionFiles
-                |> Seq.iter(fun f -> 
+                |> Seq.iter(fun f ->
                     runNuGet (sprintf "restore %s" f) "" |> ensureSuccessExitCode
                 )
         else
             param.SolutionFiles
-                |> MSBuild param.BuildDir "Restore" 
+                |> MSBuild param.BuildDir "Restore"
                     [
                         "DebugSymbols", "false"
                         "DebugType", "Full"
                         "Configuration", "Release"
                         "Platform", "Any CPU"
                     ]
-                |> Log "AppBuild-Output: "  
+                |> Log "AppBuild-Output: "
 
     )
 
-    Target "Build" (fun _ -> 
-        param.AppProjects
-            |> MSBuild param.BuildDir "Build" 
-                [
-                    "DebugSymbols", "false"
-                    "DebugType", "Full"
-                    "Configuration", "Release"
-                    "Platform", "Any CPU"
-                ]
-            |> Log "AppBuild-Output: "    
+    Target "Build" (fun _ ->
+        param.AppProjects |> MSBuild param.BuildDir "Build"
+            [
+                "DebugSymbols", "false"
+                "DebugType", "Full"
+                "Configuration", "Release"
+                "Platform", "Any CPU"
+            ]
+            |> Log "AppBuild-Output: "
     )
 
-    Target "Test" (fun _ -> 
+    Target "Test" (fun _ ->
         runTests()
     )
 
@@ -296,16 +295,11 @@ let setup setParams =
     )
 
     Target "Pack" (fun _ ->
-        let vs = match param.VersionSuffix with
-                 | null | "" -> None
-                 | s -> Some s
-        packProjects param.PublishProjects vs    
+        packProjects param.PublishProjects param.VersionSuffix
     )
 
-    Target "Pack-Pre" (fun _ -> 
-        packProjects param.PublishProjects (Some (match param.VersionSuffix with 
-                                                     | "" -> "no-version"
-                                                     | x -> x ) )
+    Target "Pack-Pre" (fun _ ->
+        packProjects param.PublishProjects (param.VersionSuffix |> Option.defaultValue "no-version" |> Some)
     )
 
     Target "Publish" <| fun _ ->

@@ -4,21 +4,7 @@ open System
 open Fake
 open Fake.Git
 open Fake.SemVerHelper
-
-
-type PubParams = {
-    WorkingDir: string
-    Args: string list
-}
-    
-let defaultParams = {
-    WorkingDir = "." |> FullName
-    Args =
-        Environment.GetCommandLineArgs()
-        |> Seq.skipWhile (fun x -> x.ToLower() <> "pub")
-        |> Seq.skip 1
-        |> Seq.toList
-}
+open Env
 
 
 let (|Prefix|_|) (p:string) (s:string) =
@@ -26,37 +12,23 @@ let (|Prefix|_|) (p:string) (s:string) =
     | true -> Some(s.Substring(p.Length))
     | false -> None
 
+module Seq =
+    let skipSafe count seq = seq |> Seq.indexed |> Seq.filter(fst >> (<=) count) |> Seq.map snd
 
-let envFileName = ".env"
-let envPath dir = dir @@ envFileName
 
-let envRead dir =
-    let path = envPath dir
-    let fileLines = ReadFile path
-    fileLines
-        |> Seq.map (fun x -> x |> split '=')
-        |> Seq.filter (fun x -> List.length x = 2)
-        |> Seq.mapi (fun i x -> (x |> List.item 0, (x |> List.item 1, i)))
-        |> Map.ofSeq
+type PubParams = {
+    WorkingDir: string
+    Args: string list
+}
 
-let envWrite dir env =
-    let path = envPath dir
-    let fileLines =
-        env
-        |> Map.toSeq
-        |> Seq.sortBy (fun (_, (_, i)) -> i)
-        |> Seq.map (fun (k, (v, _)) -> k + "=" + v)
-    WriteFile path fileLines
-
-let envTryGet k env =
-    env |> Map.tryFind k |> Option.map fst
-
-let envGet k env =
-    env |> envTryGet k |> Option.get
-
-let envSet k v env =
-    let pos = env |> Map.find k |> snd
-    env |> Map.add k (v, pos)
+let defaultParams = {
+    WorkingDir = "." |> FullName
+    Args =
+        Environment.GetCommandLineArgs()
+        |> Seq.skipWhile (fun x -> x.ToLower() <> "pub")
+        |> Seq.skipSafe 1
+        |> Seq.toList
+}
 
 
 let normPreRelease ver =
@@ -71,20 +43,8 @@ let incPreRelease ver =
 let zeroPreRelease = PreRelease.TryParse "001" |> Option.get
 
 
-// Method not found: '!!0 Microsoft.FSharp.Core.OptionModule.DefaultValue
-let optionDefaultValue value =
-    function
-    | Some x -> x
-    | _ -> value
-
-let optionDefaultWith value =
-    function
-    | Some x -> x
-    | _ -> value()
-
-
 let incPrev ver =
-    { ver with PreRelease = ver.PreRelease |> Option.map incPreRelease |> optionDefaultValue zeroPreRelease |> Some }
+    { ver with PreRelease = ver.PreRelease |> Option.map incPreRelease |> Option.defaultValue zeroPreRelease |> Some }
 
 let incPatch ver =
     { ver with PreRelease = None; Patch = ver.Patch + 1 }
@@ -105,9 +65,9 @@ let verToVp withMv ver =
     match withMv with
     | true -> sprintf "%%mv%%.%d.%d" ver.Minor ver.Patch
     | false -> sprintf "%d.%d.%d" ver.Major ver.Minor ver.Patch
-    
+
 let verToVs ver =
-    ver.PreRelease |> Option.bind (fun x -> x.Number) |> Option.map(fun x -> sprintf "preview%03d" x) |> optionDefaultValue ""
+    ver.PreRelease |> Option.bind (fun x -> x.Number) |> Option.map(fun x -> sprintf "preview%03d" x) |> Option.defaultValue ""
 
 
 // can be maded more secure (mv existence and vp=%mv%... check)
@@ -120,11 +80,12 @@ let vsToFakeFormat (s: string) =
     else
         s
 
+
 let readVerFromEnv env =
     let segs = [
-        env |> envTryGet "mv"
-        Some(env |> envGet "vp" |> replace "%mv%." "")
-        Some(env |> envGet "vs" |> vsToFakeFormat)
+        env |> Env.tryGet "mv" |> Option.map getRawVal
+        Some(env |> Env.get "vp" |> getRawVal |> replace "%mv%." "")
+        Some(env |> Env.get "vs" |> getRawVal |> vsToFakeFormat)
     ]
     let verStr = segs |> Seq.filter Option.isSome |> Seq.map Option.get |> String.concat "."
     SemVerHelper.parse verStr
@@ -132,18 +93,18 @@ let readVerFromEnv env =
 let writeVerToEnv env ver =
     let hasMv = env |> Map.containsKey "mv"
     let trs = [
-        (fun x -> if hasMv then x |> envSet "mv" (ver.Major.ToString()) else x)
-        (fun x -> x |> envSet "vp" (ver |> verToVp hasMv))
-        (fun x -> x |> envSet "vs" (verToVs ver))
+        (fun x -> if hasMv then x |> Env.set "mv" (ver.Major.ToString()) else x)
+        (fun x -> x |> Env.set "vp" (ver |> verToVp hasMv))
+        (fun x -> x |> Env.set "vs" (verToVs ver))
     ]
     let tr = trs |> Seq.fold (>>) id
     env |> tr
 
 
-let gitCommitAmend rep = 
+let gitCommitAmend rep =
     gitCommand rep "commit --amend --no-edit"
 
-let gitCommit rep msg = 
+let gitCommit rep msg =
     gitCommand rep (sprintf "commit -m \"%s\"" msg)
 
 let gitGetLastTag rep =
@@ -161,10 +122,10 @@ let gitIsHeadTagged rep =
     let tags = getGitResult rep "tag --points-at HEAD"
     tags.Count > 0
 
-let gitEnsureStageEmpty msg rep = 
+let gitEnsureStageEmpty msg rep =
     if not (gitIsStageEmpty rep) then failwith msg
 
-let gitEnsureStageNonempty msg rep = 
+let gitEnsureStageNonempty msg rep =
     if gitIsStageEmpty rep then failwith msg
 
 type GitSyncStatus = { Behind: bool; Ahead: bool; }
@@ -186,7 +147,7 @@ type ReleaseInc =
 | Minor
 | Major
 
-type VerInc = 
+type VerInc =
 | ReleaseInc of ReleaseInc
 | PreviewNew of ReleaseInc
 | PreviewNext
@@ -209,7 +170,7 @@ let parseArgs args =
         args
         |> List.tryItem 0
         |> Option.map toLower
-    
+
     match fArg with
     | None -> Help
     | Some fArg ->
@@ -224,7 +185,7 @@ let parseArgs args =
                     | fArgSuff -> PreviewNew (fArgSuff |> parseReleaseInc)
                 | Prefix "rel" _ -> PreviewRelease
                 | _ -> ReleaseInc (fArg |> parseReleaseInc)
-    
+
             let msg = args |> List.tryItem 1
 
             Pub ({ VerInc = verInc; Msg = msg; })
@@ -233,7 +194,7 @@ let parseArgs args =
 let ensureVerIsRelease msg ver = if Option.isNone ver.PreRelease then ver else failwith msg
 let ensureVerIsPreRelease msg ver = if Option.isSome ver.PreRelease then ver else failwith msg
 
-let makeReleaseInc relInc ver = 
+let makeReleaseInc relInc ver =
     let ver = ver |> ensureVerIsRelease "you can not change version until the current version is a preview, you can use 'pre' cmd to inc a preview version or 'release' cmd to release a preview"
     match relInc with
     | Patch -> incPatch ver
@@ -252,12 +213,12 @@ let makeVerInc verInc ver =
 let setup setParams =
     let p = setParams defaultParams
 
-    Target "Pub" <| (fun _ -> 
+    Target "Pub" <| (fun _ ->
         let rep = p.WorkingDir
         let cmd = parseArgs p.Args
 
         match cmd with
-        | Help -> 
+        | Help ->
             log "# How to use Pub"
             log "Well, if you want to make a preview just type 'pub prePatch', 'pub preMinor', 'pub preMajor', it will fetch the upstream (i.e. the remote branch) for validation and will not run tests."
             log "All commands are case-insensitive, so a big letter just for readibility."
@@ -268,25 +229,25 @@ let setup setParams =
             log "You can use a prefix only, patch=pat, minor=min, major=maj, release=rel."
             log ""
             log "# Important info for understanding the workflow"
-            log "Brief: Pub realization assumes that you'll make some changes, stage them, then call Pub with a commit message; then you can use Pub without a message to just change a version of the last commit (and deploy it like all cmds do of course)."
+            log "Brief: Pub implementation assumes that you'll make some changes, stage them, then call Pub with a commit message; then you can use Pub without a message to just change a version of the last commit (and deploy it like all cmds do of course)."
             log "You can pass a commit message, so 'pub patch \"some msg\"' will create a commit (it will not call smth like 'git add .', you should do it yourself)."
             log "If a commit message is passed then Pub will always create a new commit and it will always amend the last commit if a commit message is not passed."
             log "Because of that a stage must be nonempty if a commit message is passed and it must be empty if a commit message is not passed."
         | Pub pub ->
             let verInc = pub.VerInc
             let msg = pub.Msg
-        
+
             let isRelease =
                 match verInc with
                 | PreviewNew _ | PreviewNext -> false
                 | ReleaseInc _ | PreviewRelease -> true
 
             log "init"
-            let oldEnv = envRead rep
+            let oldEnv = Env.read rep
             let oldVer = oldEnv |> readVerFromEnv
             let newVer = oldVer |> makeVerInc verInc
             let newEnv = newVer |> writeVerToEnv oldEnv
-        
+
             log "validation"
             match verInc with
             | PreviewNext -> ()
@@ -303,20 +264,20 @@ let setup setParams =
                     rep |> gitEnsureStageEmpty "there are some changes (the stage is not empty), add a commit message or create a commit manually"
                 | false ->
                     failwith "the last commit exists on the upstream, add a commit message or create a commit manually"
-        
+
             if isRelease then
                 log "tests"
                 TargetHelper.run "Test"
 
             log ".env updating, commiting"
-            newEnv |> envWrite rep
-            envFileName |> StageFile rep |> ignore
+            newEnv |> Env.write rep
+            Env.envFileName |> StageFile rep |> ignore
             match msg with
             | Some msg ->
                 gitCommit rep msg
             | None ->
                 gitCommitAmend rep
-        
+
             if isRelease then
                 log "tagging, pushing"
                 verToTagStr newVer |> tag rep

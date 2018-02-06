@@ -6,7 +6,8 @@ Contains [FAKE](https://github.com/fsharp/FAKE) build scripts for .net library d
 - Test
 - Pack
 - Publish
+- Pub
 
-Supports old and new .csproj projects. 
+Supports old and new .csproj projects.
 
-Example of usage https://github.com/Steinpilz/confifu 
+Example of usage https://github.com/Steinpilz/confifu

@@ -1,20 +1,18 @@
-// include Fake lib
-#r @"..\packages\FAKE\tools\FakeLib.dll"
+#r @"../packages/FAKE/tools/FakeLib.dll"
+#load @"../src/app/Steinpilz.DevFlow.Fake.Lib/env.fs"
+#load @"../src/app/Steinpilz.DevFlow.Fake.Lib/pub.fs"
+#load @"../src/app/Steinpilz.DevFlow.Fake.Lib/lib.fs"
 
-#load @"..\src\app\Steinpilz.DevFlow.Fake.Lib\lib.fs"
-
-open Steinpilz.DevFlow.Fake
 open Fake
+open Steinpilz.DevFlow.Fake
 
-let param = Lib.setup <| fun p -> 
-    { p with 
+let param = Lib.setup <| fun p ->
+    { p with
         AppProjects = !!"src/**/*.fsproj"
-        TestProjects = !!"test/**/*.fsproj"
         PublishProjects = !! "src/**/*.fsproj"
-        UseNuGetToPack = true
-        UseNuGetToRestore = true
-        NuGetFeed = 
-            { p.NuGetFeed with 
+
+        NuGetFeed =
+            { p.NuGetFeed with
                 ApiKey = environVarOrFail <| "NUGET_API_KEY" |> Some
             }
     }
@@ -22,26 +20,25 @@ let param = Lib.setup <| fun p ->
 let packTool version =
     CreateDir param.PublishDir
     NuGetPack(fun p ->
-    {p with
+    { p with
         Version = version
         WorkingDir = param.ArtifactsDir
         OutputPath = param.PublishDir
-        Files = 
-            [ 
-                (@"build\**\*", Some "tools", None) 
+        Files =
+            [
+                (@"build\**\*", Some "tools", None)
             ]
-    }) ("src/app/Steinpilz.DevFlow.Fake/Steinpilz.DevFlow.Fake.nuspec" |> FullName)    
+    }) ("src/app/Steinpilz.DevFlow.Fake/Steinpilz.DevFlow.Fake.nuspec" |> FullName)
 
-Target "Pack-Tool" (fun _ -> 
-    let vs = match param.VersionSuffix with
-                 | null | "" -> ""
-                 | s -> "-" + s
-    packTool <| param.VersionPrefix + vs
+Target "Pack-Tool" (fun _ ->
+    let vp = param.VersionPrefix |> Option.defaultValue ""
+    let vs = param.VersionSuffix |> Option.map ((+) "-") |> Option.defaultValue ""
+    packTool <| vp + vs
 )
 
-"Build" 
+"Build"
     ==> "Pack-Tool"
-    ==> "Pack" 
+    ==> "Pack"
     |> ignore
 
 RunTargetOrDefault "Watch"
