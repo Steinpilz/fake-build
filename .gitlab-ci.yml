@@ -1,16 +1,17 @@
 stages:
   - build
 variables:
-  
+
 cache:
   paths:
   - packages
 before_script:
-  - .paket\paket restore
+    - mono .paket/paket.exe restore
 
 build:
   stage: build
+  image: steinpilz/internal-build:1.0.1
   tags:
     - msbuild15
-  script: 
-    - call build Target=Build
+  script:
+    - ./build.sh Build

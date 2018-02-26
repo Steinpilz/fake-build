@@ -1,6 +1,8 @@
-source http://nuget.org/api/v2
+source https://api.nuget.org/v3/index.json
 
-nuget FAKE 4.50.0
-nuget FAKE.Dotnet
-nuget xunit.runner.console 2.2.0
-nuget NuGet.CommandLine 3.5.0
+nuget FSharp.Core ~> 4
+nuget FParsec ~> 1
+nuget FAKE ~> 4
+nuget FAKE.Lib ~> 4
+nuget NuGet.CommandLine ~> 4
+nuget xunit.runner.console ~> 2
