@@ -15,7 +15,6 @@ let param = Lib.setup <| fun p ->
         AppProjects = !!"src/**/*.fsproj"
         PublishProjects = !! "src/**/*.fsproj"
         UseNuGetToPack = true
-        UseNuGetToRestore = true
         NuGetFeed =
             { p.NuGetFeed with
                 ApiKey = environVarOrFail <| "NUGET_API_KEY" |> Some
@@ -31,7 +30,7 @@ let packTool param version =
         OutputPath = param.PublishDir
         Files =
             [
-                (@"build\**\*", Some "tools", None)
+                (@"build/**/*", Some "tools", None)
             ]
     }) ("src/app/Steinpilz.DevFlow.Fake/Steinpilz.DevFlow.Fake.nuspec" |> FullName)
 
