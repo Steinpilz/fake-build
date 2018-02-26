@@ -1,5 +1,9 @@
 #r @"../packages/FAKE/tools/FakeLib.dll"
+#r @"../packages/FParsec/lib/netstandard1.6/FParsecCS.dll"
+#r @"../packages/FParsec/lib/netstandard1.6/FParsec.dll"
 #load @"../src/app/Steinpilz.DevFlow.Fake.Lib/env.fs"
+#load @"../src/app/Steinpilz.DevFlow.Fake.Lib/buildParams.fs"
+#load @"../src/app/Steinpilz.DevFlow.Fake.Lib/buildUtils.fs"
 #load @"../src/app/Steinpilz.DevFlow.Fake.Lib/pub.fs"
 #load @"../src/app/Steinpilz.DevFlow.Fake.Lib/lib.fs"
 
@@ -10,14 +14,15 @@ let param = Lib.setup <| fun p ->
     { p with
         AppProjects = !!"src/**/*.fsproj"
         PublishProjects = !! "src/**/*.fsproj"
-
+        UseNuGetToPack = true
+        UseNuGetToRestore = true
         NuGetFeed =
             { p.NuGetFeed with
                 ApiKey = environVarOrFail <| "NUGET_API_KEY" |> Some
             }
     }
 
-let packTool version =
+let packTool param version =
     CreateDir param.PublishDir
     NuGetPack(fun p ->
     { p with
@@ -31,9 +36,9 @@ let packTool version =
     }) ("src/app/Steinpilz.DevFlow.Fake/Steinpilz.DevFlow.Fake.nuspec" |> FullName)
 
 Target "Pack-Tool" (fun _ ->
-    let vp = param.VersionPrefix |> Option.defaultValue ""
-    let vs = param.VersionSuffix |> Option.map ((+) "-") |> Option.defaultValue ""
-    packTool <| vp + vs
+    let param = param()
+    let v = (param.VersionPrefix, param.VersionSuffix) ||> fullVersion
+    packTool param v
 )
 
 "Build"

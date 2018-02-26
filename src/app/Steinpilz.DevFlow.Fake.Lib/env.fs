@@ -4,7 +4,6 @@ module Env
 open Fake
 open System.Text.RegularExpressions
 
-
 type EnvLine = { Key: string; RawValue: string; Value: string; LineNumber: int }
 
 let getRawVal el = el.RawValue

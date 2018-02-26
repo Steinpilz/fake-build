@@ -1,6 +1,7 @@
 source https://api.nuget.org/v3/index.json
 
 nuget FSharp.Core ~> 4
+nuget FParsec ~> 1
 nuget FAKE ~> 4
 nuget FAKE.Lib ~> 4
 nuget NuGet.CommandLine ~> 3

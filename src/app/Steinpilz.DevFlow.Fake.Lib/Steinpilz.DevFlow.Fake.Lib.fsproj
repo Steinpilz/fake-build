@@ -8,6 +8,8 @@
   <ItemGroup>
     <Compile Include="assemblyInfo.fs" />
     <Compile Include="env.fs" />
+    <Compile Include="buildParams.fs" />
+    <Compile Include="buildUtils.fs" />
     <Compile Include="pub.fs" />
     <Compile Include="lib.fs" />
   </ItemGroup>
