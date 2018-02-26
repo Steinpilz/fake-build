@@ -4,5 +4,5 @@ nuget FSharp.Core ~> 4
 nuget FParsec ~> 1
 nuget FAKE ~> 4
 nuget FAKE.Lib ~> 4
-nuget NuGet.CommandLine ~> 3
+nuget NuGet.CommandLine ~> 4
 nuget xunit.runner.console ~> 2
