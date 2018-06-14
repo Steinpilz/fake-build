@@ -1,4 +1,4 @@
-﻿module Pub
+﻿module Steinpilz.DevFlow.Fake.Pub
 
 open System
 open Fake

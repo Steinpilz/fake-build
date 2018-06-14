@@ -1,6 +1,7 @@
 // include Fake lib
 #r @"..\packages\FAKE\tools\FakeLib.dll"
 
+#load @"..\src\app\Steinpilz.DevFlow.Fake.Lib\pub.fs"
 #load @"..\src\app\Steinpilz.DevFlow.Fake.Lib\lib.fs"
 
 open Steinpilz.DevFlow.Fake

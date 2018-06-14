@@ -1,7 +1,6 @@
 ﻿module Steinpilz.DevFlow.Fake.Lib
 open Fake
 open System
-open Pub
 
 type NuGetFeed = {
     EndpointUrl: string
@@ -20,6 +19,7 @@ type BuildParams = {
     UseDotNetCliToPack: bool
     UseNuGetToRestore: bool
     AssemblyInfoFiles: FileIncludes
+    UseDotNetCliToTest: bool
 
     XUnitConsoleToolPath: string
     XUnitTimeOut: TimeSpan option
@@ -61,6 +61,7 @@ let defaultBuildParams =
         UseDotNetCliToPack = false
         UseNuGetToRestore = false
         AssemblyInfoFiles = !!"**/*AssemblyInfo.cs" ++ "**/AssemblyInfo.fs"
+        UseDotNetCliToTest = false
         
         AppProjects = !!"src/app/**/*.csproj"
         TestProjects = !!"src/test/**/*Tests.csproj"
@@ -80,10 +81,7 @@ let defaultBuildParams =
 let setup setParams =
     let param = defaultBuildParams |> setParams
         
-
-    let runTests() = 
-        tracefn("Running tests...")
-
+    let runTestsWithXUnit() =
         // we put each test project to its own folder, 
         // while they could have different dependencies (versions)
         for testProjectPath in param.TestProjects do
@@ -113,7 +111,18 @@ let setup setParams =
                                 | Some x -> x
                 } 
                 )
+    let runTestsWithDotNetCli() = 
+        for testProjectPath in param.TestProjects do
+            DotNetCli.Test(fun p -> 
+                {p with 
+                    Project = testProjectPath
+                })
 
+    let runTests() = 
+        tracefn("Running tests...")
+        if param.UseDotNetCliToTest then runTestsWithDotNetCli()
+        else runTestsWithXUnit()
+            
     let ensureSuccessExitCode code =
         if code > 0 then
             failwith (sprintf "Exit code %i doesn't indicate succeed" code)
@@ -302,28 +311,28 @@ let setup setParams =
         packProjects param.PublishProjects vs    
     )
 
-    Target "Pack-Pre" (fun _ -> 
-        packProjects param.PublishProjects (Some (match param.VersionSuffix with 
-                                                     | "" -> "no-version"
-                                                     | x -> x ) )
-    )
+    //Target "Pack-Pre" (fun _ -> 
+    //    packProjects param.PublishProjects (Some (match param.VersionSuffix with 
+    //                                                 | "" -> "no-version"
+    //                                                 | x -> x ) )
+    //)
 
     Target "Publish" <| fun _ ->
         publish()
 
-    Target "Publish-Release" (fun _ ->
-        publish()
-    )
+    //Target "Publish-Release" (fun _ ->
+    //    publish()
+    //)
 
-    Target "Publish-Pre" (fun _ ->
-        publish()
-    )
+    //Target "Publish-Pre" (fun _ ->
+    //    publish()
+    //)
     //
     //Target "Publish-Tags" (fun _ ->
     //    Git.Branches.
     //)
 
-    Pub.setup id
+    //Pub.setup id
 
     Target "Default" <| DoNothing
 
@@ -340,7 +349,6 @@ let setup setParams =
 
     "Clean"
         ==> "Restore"
-        ==> "Pack-Pre"
         |> ignore
 
     "Clean"
@@ -349,15 +357,7 @@ let setup setParams =
         |> ignore
 
     "Pack"
-        ==> "Publish-Release"
-        |> ignore
-
-    "Pack"
         ==> "Publish"
-        |> ignore
-
-    "Pack-Pre"
-        ==> "Publish-Pre"
         |> ignore
 
     ()
