@@ -20,6 +20,7 @@ type BuildParams = {
     UseNuGetToRestore: bool
     AssemblyInfoFiles: FileIncludes
     UseDotNetCliToTest: bool
+    SetVersionForPack: bool
 
     XUnitConsoleToolPath: string
     XUnitTimeOut: TimeSpan option
@@ -62,6 +63,7 @@ let defaultBuildParams =
         UseNuGetToRestore = false
         AssemblyInfoFiles = !!"**/*AssemblyInfo.cs" ++ "**/AssemblyInfo.fs"
         UseDotNetCliToTest = false
+        SetVersionForPack = true
         
         AppProjects = !!"src/app/**/*.csproj"
         TestProjects = !!"src/test/**/*Tests.csproj"
@@ -143,7 +145,7 @@ let setup setParams =
             info.WorkingDirectory <- dir
             info.Arguments <- args) nugetParams.TimeOut
         
-    let packProjectsWithNuget projects (versionSuffix: Option<string>) =
+    let packProjectsWithNuget setVersionForPack projects (versionSuffix: Option<string>) =
         CreateDir param.PublishDir
 
         let mainVersion = param.VersionPrefix
@@ -167,38 +169,42 @@ let setup setParams =
                 
         let toolArg = if false then "-Tool " else "-IncludeReferencedProjects "
 
+        let versionArg = if setVersionForPack then sprintf "-version %s%s" mainVersion suffixArg else ""
+        let globalVersionArg = if setVersionForPack then sprintf "-properties globalversion=%s" fullVersion else ""
+        
         projects
             |> Seq.iter (fun (projPath) ->
                 let args = 
-                    sprintf "pack %s -Build -version %s%s %s -properties %s" 
+                    sprintf "pack %s -Build %s %s %s" 
                         projPath
-                        mainVersion 
-                        suffixArg
+                        versionArg 
                         toolArg
-                        "globalversion=" + fullVersion
+                        globalVersionArg
                 
                 runNuGet args <| param.PublishDir |> ignore
                 ()
             )
 
-    let packProjectsWithMsBuild projects (versionSuffix: Option<string>) = 
+    let packProjectsWithMsBuild setVersionForPack projects (versionSuffix: Option<string>) = 
         tracefn "Packing project %A" projects
         projects
         |> MSBuild param.PublishDir "Restore;Pack" 
-                [
+                ([
                     "PackageOutputPath", param.PublishDir
                     "DebugSymbols", "false"
                     "DebugType", "Full"
                     "Configuration", "Release"
                     "Platform", "Any CPU"
+                    
+                ] @ if not setVersionForPack then [] else [
                     "VersionPrefix", param.VersionPrefix
                     "VersionSuffix",    match versionSuffix with
                                         | Some x -> x
                                         | None -> ""
-                ]
+                ])
         |> Log "AppBuild-Output: "    
 
-    let packProjectsWithDotnetCli projects (versionSuffix: Option<string>) = 
+    let packProjectsWithDotnetCli setVersionForPack projects (versionSuffix: Option<string>) = 
         tracefn "Packing project %A" projects
         CreateDir param.PublishDir
 
@@ -213,24 +219,25 @@ let setup setParams =
                 Project = project
                 OutputPath = param.PublishDir
                 VersionSuffix = vs
-                AdditionalArgs = 
+                AdditionalArgs =
+                    if not setVersionForPack then []
+                    else
                     [
                         "/p:VersionPrefix="+param.VersionPrefix
                         "/p:GlobalVersion="+param.VersionPrefix + vs
                         "/p:vs="+vs
                         "/p:vp="+param.VersionPrefix
-
                     ]
             })
         )
 
     let packProjects =
         if param.UseNuGetToPack 
-        then packProjectsWithNuget
+        then packProjectsWithNuget param.SetVersionForPack
         else 
             if param.UseDotNetCliToPack 
-            then packProjectsWithDotnetCli
-            else packProjectsWithMsBuild
+            then packProjectsWithDotnetCli param.SetVersionForPack
+            else packProjectsWithMsBuild param.SetVersionForPack
 
 
     let publish() =
