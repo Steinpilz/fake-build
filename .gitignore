@@ -117,3 +117,4 @@ sidekickapp.exe
 *.nuget.targets
 .fake
 paket-files
+.idea

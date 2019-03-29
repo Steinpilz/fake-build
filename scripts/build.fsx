@@ -1,5 +1,6 @@
 // include Fake lib
 #r @"..\packages\FAKE\tools\FakeLib.dll"
+#r @"..\packages\FSharp.Collections.ParallelSeq.1.1.2\lib\netstandard2.0\FSharp.Collections.ParallelSeq.dll"
 
 #load @"..\src\app\Steinpilz.DevFlow.Fake.Lib\pub.fs"
 #load @"..\src\app\Steinpilz.DevFlow.Fake.Lib\lib.fs"
@@ -12,8 +13,9 @@ let param = Lib.setup <| fun p ->
         AppProjects = !!"src/**/*.fsproj"
         TestProjects = !!"test/**/*.fsproj"
         PublishProjects = !! "src/**/*.fsproj"
-        UseNuGetToPack = true
-        UseNuGetToRestore = true
+        UseDotNetCliToBuild = true
+        UseDotNetCliToPack = true
+        DisableRestore = true
         NuGetFeed = 
             { p.NuGetFeed with 
                 ApiKey = environVarOrFail <| "NUGET_API_KEY" |> Some
@@ -40,9 +42,9 @@ Target "Pack-Tool" (fun _ ->
     packTool <| param.VersionPrefix + vs
 )
 
-"Build" 
+"Build"
     ==> "Pack-Tool"
-    ==> "Pack" 
+    ==> "Pack"
     |> ignore
 
 RunTargetOrDefault "Watch"

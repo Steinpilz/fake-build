@@ -1,4 +1,5 @@
 ﻿module Steinpilz.DevFlow.Fake.Lib
+open FSharp.Collections.ParallelSeq
 open Fake
 open System
 
@@ -17,10 +18,13 @@ type BuildParams = {
     SolutionFiles: FileIncludes
     UseNuGetToPack: bool
     UseDotNetCliToPack: bool
+    UseDotNetCliToBuild: bool
     UseNuGetToRestore: bool
     AssemblyInfoFiles: FileIncludes
     UseDotNetCliToTest: bool
     SetVersionForPack: bool
+    DegreeOfParallelism: int
+    DisableRestore: bool
 
     XUnitConsoleToolPath: string
     XUnitTimeOut: TimeSpan option
@@ -59,11 +63,14 @@ let defaultBuildParams =
         XUnitConsoleToolPath = xUnitConsole
         XUnitTimeOut = None
         UseNuGetToPack = false
+        UseDotNetCliToBuild = false
+        UseDotNetCliToTest = false
         UseDotNetCliToPack = false
+        SetVersionForPack = true
+        DisableRestore = false
         UseNuGetToRestore = false
         AssemblyInfoFiles = !!"**/*AssemblyInfo.cs" ++ "**/AssemblyInfo.fs"
-        UseDotNetCliToTest = false
-        SetVersionForPack = true
+        DegreeOfParallelism = 1
         
         AppProjects = !!"src/app/**/*.csproj"
         TestProjects = !!"src/test/**/*Tests.csproj"
@@ -113,12 +120,10 @@ let setup setParams =
                                 | Some x -> x
                 } 
                 )
-    let runTestsWithDotNetCli() = 
-        for testProjectPath in param.TestProjects do
-            DotNetCli.Test(fun p -> 
-                {p with 
-                    Project = testProjectPath
-                })
+    let runTestsWithDotNetCli() =
+        param.TestProjects
+        |> PSeq.withDegreeOfParallelism param.DegreeOfParallelism
+        |> PSeq.iter (fun proj -> DotNetCli.Test (fun p -> { p with Project = proj }))
 
     let runTests() = 
         tracefn("Running tests...")
@@ -145,7 +150,7 @@ let setup setParams =
             info.WorkingDirectory <- dir
             info.Arguments <- args) nugetParams.TimeOut
         
-    let packProjectsWithNuget setVersionForPack projects (versionSuffix: Option<string>) =
+    let packProjectsWithNuget projects (versionSuffix: Option<string>) =
         CreateDir param.PublishDir
 
         let mainVersion = param.VersionPrefix
@@ -169,8 +174,8 @@ let setup setParams =
                 
         let toolArg = if false then "-Tool " else "-IncludeReferencedProjects "
 
-        let versionArg = if setVersionForPack then sprintf "-version %s%s" mainVersion suffixArg else ""
-        let globalVersionArg = if setVersionForPack then sprintf "-properties globalversion=%s" fullVersion else ""
+        let versionArg = if param.SetVersionForPack then sprintf "-version %s%s" mainVersion suffixArg else ""
+        let globalVersionArg = if param.SetVersionForPack then sprintf "-properties globalversion=%s" fullVersion else ""
         
         projects
             |> Seq.iter (fun (projPath) ->
@@ -185,7 +190,7 @@ let setup setParams =
                 ()
             )
 
-    let packProjectsWithMsBuild setVersionForPack projects (versionSuffix: Option<string>) = 
+    let packProjectsWithMsBuild projects (versionSuffix: Option<string>) = 
         tracefn "Packing project %A" projects
         projects
         |> MSBuild param.PublishDir "Restore;Pack" 
@@ -196,7 +201,9 @@ let setup setParams =
                     "Configuration", "Release"
                     "Platform", "Any CPU"
                     
-                ] @ if not setVersionForPack then [] else [
+                ] @
+                if not param.SetVersionForPack then []
+                else [
                     "VersionPrefix", param.VersionPrefix
                     "VersionSuffix",    match versionSuffix with
                                         | Some x -> x
@@ -204,7 +211,7 @@ let setup setParams =
                 ])
         |> Log "AppBuild-Output: "    
 
-    let packProjectsWithDotnetCli setVersionForPack projects (versionSuffix: Option<string>) = 
+    let packProjectsWithDotnetCli projects (versionSuffix: Option<string>) = 
         tracefn "Packing project %A" projects
         CreateDir param.PublishDir
 
@@ -213,14 +220,15 @@ let setup setParams =
                     | None -> "" 
         
         projects
-        |> Seq.iter (fun project -> 
+        |> PSeq.withDegreeOfParallelism param.DegreeOfParallelism
+        |> PSeq.iter (fun project -> 
             DotNetCli.Pack(fun p -> 
             { p with 
                 Project = project
                 OutputPath = param.PublishDir
                 VersionSuffix = vs
                 AdditionalArgs =
-                    if not setVersionForPack then []
+                    if not param.SetVersionForPack then []
                     else
                     [
                         "/p:VersionPrefix="+param.VersionPrefix
@@ -233,11 +241,11 @@ let setup setParams =
 
     let packProjects =
         if param.UseNuGetToPack 
-        then packProjectsWithNuget param.SetVersionForPack
+        then packProjectsWithNuget
         else 
             if param.UseDotNetCliToPack 
-            then packProjectsWithDotnetCli param.SetVersionForPack
-            else packProjectsWithMsBuild param.SetVersionForPack
+            then packProjectsWithDotnetCli
+            else packProjectsWithMsBuild
 
 
     let publish() =
@@ -249,7 +257,8 @@ let setup setParams =
             -- (param.PublishDir @@ "*.symbols.nupkg")
 
         nugetPackageFiles
-        |> Seq.iter (fun file -> 
+        |> PSeq.withDegreeOfParallelism param.DegreeOfParallelism
+        |> PSeq.iter (fun file -> 
             let args =
                 sprintf "push %s -Source %s" 
                         file 
@@ -268,35 +277,46 @@ let setup setParams =
         CleanDir param.ArtifactsDir
     )
 
-    Target "Restore" (fun _ -> 
-        if param.UseNuGetToRestore then
-            param.SolutionFiles
-                |> Seq.iter(fun f -> 
-                    runNuGet (sprintf "restore %s" f) "" |> ensureSuccessExitCode
-                )
+    Target "Restore" (fun _ ->
+        if not param.DisableRestore then
+            if param.UseNuGetToRestore then
+                param.SolutionFiles
+                    |> Seq.iter(fun f -> 
+                        runNuGet (sprintf "restore %s" f) "" |> ensureSuccessExitCode
+                    )
+            else
+                param.SolutionFiles
+                    |> MSBuild param.BuildDir "Restore" 
+                        [
+                            "DebugSymbols", "false"
+                            "DebugType", "Full"
+                            "Configuration", "Release"
+                            "Platform", "Any CPU"
+                        ]
+                    |> Log "AppBuild-Output: "  
+
+    )
+
+    Target "Build" (fun _ ->
+        if param.UseDotNetCliToBuild then
+            param.AppProjects
+            |> PSeq.withDegreeOfParallelism param.DegreeOfParallelism
+            |> PSeq.iter (fun proj -> DotNetCli.Build (fun p ->
+                { p with
+                    Project = proj
+                    Configuration = "Release"
+                    Output = param.BuildDir
+                }))
         else
-            param.SolutionFiles
-                |> MSBuild param.BuildDir "Restore" 
+            param.AppProjects
+                |> MSBuild param.BuildDir "Build" 
                     [
                         "DebugSymbols", "false"
                         "DebugType", "Full"
                         "Configuration", "Release"
                         "Platform", "Any CPU"
                     ]
-                |> Log "AppBuild-Output: "  
-
-    )
-
-    Target "Build" (fun _ -> 
-        param.AppProjects
-            |> MSBuild param.BuildDir "Build" 
-                [
-                    "DebugSymbols", "false"
-                    "DebugType", "Full"
-                    "Configuration", "Release"
-                    "Platform", "Any CPU"
-                ]
-            |> Log "AppBuild-Output: "    
+                |> Log "AppBuild-Output: " 
     )
 
     Target "Test" (fun _ -> 
