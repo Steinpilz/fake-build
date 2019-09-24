@@ -6,7 +6,6 @@
 open Steinpilz.DevFlow.Fake
 open Fake
 
-
 let param = Lib.setup <| fun p -> 
     { p with 
         AppProjects = !!"src/**/*.fsproj"
@@ -26,11 +25,11 @@ let packTool version =
     NuGetPack(fun p ->
     {p with
         Version = version
-        WorkingDir = param.ArtifactsDir
+        WorkingDir = param.ArtifactsDir @@ "build"
         OutputPath = param.PublishDir
         Files = 
             [ 
-                (@"build/**/*", Some "tools", None) 
+                (@"**/*", Some "tools", None) 
             ]
     }) ("src/app/Steinpilz.DevFlow.Fake/Steinpilz.DevFlow.Fake.nuspec" |> FullName)    
 
