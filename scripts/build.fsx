@@ -1,12 +1,11 @@
 // include Fake lib
-#r @"..\packages\FAKE\tools\FakeLib.dll"
-#r @"..\packages\FSharp.Collections.ParallelSeq.1.1.2\lib\netstandard2.0\FSharp.Collections.ParallelSeq.dll"
-
-#load @"..\src\app\Steinpilz.DevFlow.Fake.Lib\pub.fs"
-#load @"..\src\app\Steinpilz.DevFlow.Fake.Lib\lib.fs"
+#r @"../packages/FAKE/tools/FakeLib.dll"
+#r @"../packages/FSharp.Collections.ParallelSeq/lib/netstandard2.0/FSharp.Collections.ParallelSeq.dll"
+#r @"../src/app/Steinpilz.DevFlow.Fake.Lib/bin/Debug/net462/Steinpilz.DevFlow.Fake.Lib.dll"
 
 open Steinpilz.DevFlow.Fake
 open Fake
+
 
 let param = Lib.setup <| fun p -> 
     { p with 
@@ -15,7 +14,7 @@ let param = Lib.setup <| fun p ->
         PublishProjects = !! "src/**/*.fsproj"
         UseDotNetCliToBuild = true
         UseDotNetCliToPack = true
-        DisableRestore = true
+        UseDotNetCliToRestore = true
         NuGetFeed = 
             { p.NuGetFeed with 
                 ApiKey = environVarOrFail <| "NUGET_API_KEY" |> Some
@@ -31,7 +30,7 @@ let packTool version =
         OutputPath = param.PublishDir
         Files = 
             [ 
-                (@"build\**\*", Some "tools", None) 
+                (@"build/**/*", Some "tools", None) 
             ]
     }) ("src/app/Steinpilz.DevFlow.Fake/Steinpilz.DevFlow.Fake.nuspec" |> FullName)    
 

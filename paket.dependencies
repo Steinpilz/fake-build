@@ -3,3 +3,4 @@ source http://api.nuget.org/v3/index.json
 nuget FAKE ~> 4
 nuget FAKE.Dotnet ~> 2
 nuget NuGet.CommandLine ~> 4
+nuget FSharp.Collections.ParallelSeq ~> 1

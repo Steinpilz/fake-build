@@ -19,6 +19,7 @@ type BuildParams = {
     UseNuGetToPack: bool
     UseDotNetCliToPack: bool
     UseDotNetCliToBuild: bool
+    UseDotNetCliToRestore: bool
     UseNuGetToRestore: bool
     AssemblyInfoFiles: FileIncludes
     UseDotNetCliToTest: bool
@@ -27,6 +28,8 @@ type BuildParams = {
     DisableRestore: bool
 
     XUnitConsoleToolPath: string
+    XUnitConsoleToolPathPattern: string
+    XUnitTargetFrameworks: string list option;
     XUnitTimeOut: TimeSpan option
         
     AppProjects: FileIncludes
@@ -51,6 +54,7 @@ let defaultBuildParams =
     let testOutputDir = testDir @@ "output"
 
     let xUnitConsole = @"packages\xunit.runner.console\tools\xunit.console.exe"
+    let xUnitConsolePattern = @"packages\xunit.runner.console\tools\{TargetFramework}\xunit.console.exe"
         
     {
         ArtifactsDir = artifactsDir
@@ -61,11 +65,14 @@ let defaultBuildParams =
         TestOutputDir = testOutputDir
         SolutionFiles = !!"*.sln"
         XUnitConsoleToolPath = xUnitConsole
+        XUnitTargetFrameworks = None
+        XUnitConsoleToolPathPattern = xUnitConsolePattern
         XUnitTimeOut = None
         UseNuGetToPack = false
         UseDotNetCliToBuild = false
         UseDotNetCliToTest = false
         UseDotNetCliToPack = false
+        UseDotNetCliToRestore = false
         SetVersionForPack = true
         DisableRestore = false
         UseNuGetToRestore = false
@@ -90,6 +97,18 @@ let defaultBuildParams =
 let setup setParams =
     let param = defaultBuildParams |> setParams
         
+    let defaultTargetFrameworks = ["net462"]
+
+    let getXUnitToolPath() =
+        match System.IO.File.Exists(param.XUnitConsoleToolPath) with 
+        | true -> param.XUnitConsoleToolPath
+        | false -> param.XUnitTargetFrameworks 
+                    |> Option.defaultValue(defaultTargetFrameworks)
+                    |> Seq.map (fun (targetFramework) -> 
+                            param.XUnitConsoleToolPathPattern.Replace("{TargetFramework}", targetFramework))
+                    |> Seq.filter (fun x -> System.IO.File.Exists(x))
+                    |> Seq.tryHead |> Option.defaultWith(fun _ -> failwith "xunit console runner not found")
+                    
     let runTestsWithXUnit() =
         // we put each test project to its own folder, 
         // while they could have different dependencies (versions)
@@ -111,7 +130,7 @@ let setup setParams =
         !! param.TestDlls
             |> Fake.Testing.XUnit2.xUnit2 (fun p ->  
                 { p with
-                    ToolPath = param.XUnitConsoleToolPath
+                    ToolPath = getXUnitToolPath()
                     HtmlOutputPath = Some (param.TestOutputDir @@ "test-result.html")
                     NUnitXmlOutputPath = Some (param.TestOutputDir @@ "nunit-test-result.xml")
                     Parallel = Testing.XUnit2.ParallelMode.All
@@ -279,7 +298,15 @@ let setup setParams =
 
     Target "Restore" (fun _ ->
         if not param.DisableRestore then
-            if param.UseNuGetToRestore then
+            if param.UseDotNetCliToRestore then
+                param.SolutionFiles
+                    |> Seq.iter(fun project -> 
+                        DotNetCli.Restore(fun rp -> 
+                        { rp with 
+                            Project = project
+                        })
+                    )
+            else if param.UseNuGetToRestore then
                 param.SolutionFiles
                     |> Seq.iter(fun f -> 
                         runNuGet (sprintf "restore %s" f) "" |> ensureSuccessExitCode
