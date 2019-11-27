@@ -118,3 +118,4 @@ sidekickapp.exe
 .fake
 paket-files
 .idea
+/.ionide/symbolCache.db

@@ -1,10 +1,20 @@
-// include Fake lib
-#r @"../packages/FAKE/tools/FakeLib.dll"
-#r @"../packages/FSharp.Collections.ParallelSeq/lib/netstandard2.0/FSharp.Collections.ParallelSeq.dll"
-#r @"../src/app/Steinpilz.DevFlow.Fake.Lib/bin/Debug/net462/Steinpilz.DevFlow.Fake.Lib.dll"
+#r "paket:
+framework: netstandard20
+nuget Fake.DotNet.Cli
+nuget Fake.IO.FileSystem
+nuget Fake.Core.Target //"
 
+#r @"../src/app/Steinpilz.DevFlow.Fake.Lib/bin/Debug/netstandard2.0/Steinpilz.DevFlow.Fake.Lib.dll"
+
+#load ".fake/build.fsx/intellisense.fsx"
+
+open Fake.DotNet
+open Fake.Core
+open Fake.IO
+open Fake.IO.FileSystemOperators
+open Fake.IO.Globbing.Operators
+open Fake.Core.TargetOperators
 open Steinpilz.DevFlow.Fake
-open Fake
 
 let param = Lib.setup <| fun p -> 
     { p with 
@@ -16,24 +26,24 @@ let param = Lib.setup <| fun p ->
         UseDotNetCliToRestore = true
         NuGetFeed = 
             { p.NuGetFeed with 
-                ApiKey = environVarOrFail <| "NUGET_API_KEY" |> Some
+                ApiKey = Environment.environVarOrFail <| "NUGET_API_KEY" |> Some
             }
     }
 
 let packTool version =
-    CreateDir param.PublishDir
-    NuGetPack(fun p ->
+    Directory.create param.PublishDir
+    NuGet.NuGet.NuGetPack(fun p ->
     {p with
         Version = version
         WorkingDir = param.ArtifactsDir @@ "build"
         OutputPath = param.PublishDir
-        Files = 
-            [ 
-                (@"**/*", Some "tools", None) 
+        Files =
+            [
+                (@"**/*", Some "tools", None)
             ]
-    }) ("src/app/Steinpilz.DevFlow.Fake/Steinpilz.DevFlow.Fake.nuspec" |> FullName)    
+    }) ("src/app/Steinpilz.DevFlow.Fake/Steinpilz.DevFlow.Fake.nuspec" |> Path.getFullName)
 
-Target "Pack-Tool" (fun _ -> 
+Target.create "Pack-Tool" (fun _ -> 
     let vs = match param.VersionSuffix with
                  | null | "" -> ""
                  | s -> "-" + s
@@ -43,6 +53,5 @@ Target "Pack-Tool" (fun _ ->
 "Build"
     ==> "Pack-Tool"
     ==> "Pack"
-    |> ignore
 
-RunTargetOrDefault "Watch"
+Target.runOrDefault "Watch"
