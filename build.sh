@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
-# TODO: expand .env var file
-# for /f "delims== tokens=1,2" %%G in (.env) do call set "%%G=%%H"
+set -e
+set -o allexport
+eval $(cat .env | tr -d '\r' | sed 's_%\([^%]*\)%_$\1_g')
+set +o allexport
 
 set -eu
 set -o pipefail
@@ -27,4 +29,4 @@ if ! [ -e "$FAKE" ]
 then
   dotnet tool install fake-cli --tool-path "$TOOL_PATH"
 fi
-"$FAKE" run scripts/build.fsx "$@"
+"$FAKE" run scripts/build.fsx $@

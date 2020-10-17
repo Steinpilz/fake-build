@@ -5,6 +5,7 @@
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <Title>Steinpilz DevFlow Fake Redestributable library</Title>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,7 +22,6 @@
     <PackageReference Include="Fake.DotNet.AssemblyInfoFile" Version="5.16.1" />
     <PackageReference Include="Fake.DotNet.Cli" Version="5.16.1" />
     <PackageReference Include="Fake.DotNet.MsBuild" Version="5.16.1" />
-    <PackageReference Include="Fake.DotNet.Testing.XUnit2" Version="5.16.1" />
     <PackageReference Include="Fake.IO.FileSystem" Version="5.16.1" />
     <PackageReference Include="Fake.Tools.Git" Version="5.16.1" />
     <PackageReference Include="FSharp.Collections.ParallelSeq" Version="1.1.2" />

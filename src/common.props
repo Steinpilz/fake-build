@@ -1,6 +1,12 @@
 <Project>
   <PropertyGroup>
-    <Company>Steinpilz</Company>
-    <Authors>Steinpilz</Authors>
+    <Company>Steinpilz GmbH</Company>
+    <Authors>steinpilz, ivanbianko</Authors>
+    <Description>Contains common build scripts to build .net open source libraries</Description>
+    <Copyright>Copyright 2020</Copyright>
+    <PackageProjectUrl>https://github.com/steinpilz/fake-build</PackageProjectUrl>
+    <PackageLicenseUrl>https://github.com/steinpilz/fake-build</PackageLicenseUrl>
+    <RepositoryUrl>https://github.com/steinpilz/fake-build</RepositoryUrl>
+    <PackageTags>fake build</PackageTags>
   </PropertyGroup>
 </Project>
