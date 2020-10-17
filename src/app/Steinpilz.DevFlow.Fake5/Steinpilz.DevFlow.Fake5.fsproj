@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../../common.props" />
+  
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <Title>Steinpilz DevFlow Fake Redestributable library</Title>
+    <RootNamespace>Steinpilz.DevFlow.Fake.Lib</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="AssemblyInfo.fs" />
+    <Compile Include="pub.fs" />
+    <Compile Include="lib.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Fake.Core.Environment" Version="5.16.1" />
+    <PackageReference Include="Fake.Core.SemVer" Version="5.16.1" />
+    <PackageReference Include="Fake.Core.Target" Version="5.16.1" />
+    <PackageReference Include="Fake.Core.Trace" Version="5.16.1" />
+    <PackageReference Include="Fake.DotNet.AssemblyInfoFile" Version="5.16.1" />
+    <PackageReference Include="Fake.DotNet.Cli" Version="5.16.1" />
+    <PackageReference Include="Fake.DotNet.MsBuild" Version="5.16.1" />
+    <PackageReference Include="Fake.IO.FileSystem" Version="5.16.1" />
+    <PackageReference Include="Fake.Tools.Git" Version="5.16.1" />
+    <PackageReference Include="FSharp.Collections.ParallelSeq" Version="1.1.2" />
+    <PackageReference Include="FSharp.Core" Version="4.7.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Update="System.ValueTuple" Version="4.5.0" />
+  </ItemGroup>
+
+</Project>

@@ -13,7 +13,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".sln", ".sln", "{72C76ECD-9
 		build.sh = build.sh
 	EndProjectSection
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Steinpilz.DevFlow.Fake.Lib", "src\app\Steinpilz.DevFlow.Fake.Lib\Steinpilz.DevFlow.Fake.Lib.fsproj", "{26F252C1-8843-4E3A-95DA-5F1330FF93F7}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Steinpilz.DevFlow.Fake5", "src\app\Steinpilz.DevFlow.Fake5\Steinpilz.DevFlow.Fake5.fsproj", "{26F252C1-8843-4E3A-95DA-5F1330FF93F7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

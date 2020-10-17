@@ -11,7 +11,7 @@ nuget Fake.IO.FileSystem
 nuget FSharp.Collections.ParallelSeq
 nuget FSharp.Core //"
 
-#load @"../src/app/Steinpilz.DevFlow.Fake.Lib/lib.fs"
+#load @"../src/app/Steinpilz.DevFlow.Fake5/lib.fs"
 
 open Fake.Core
 open Fake.IO.Globbing.Operators
