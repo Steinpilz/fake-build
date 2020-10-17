@@ -15,6 +15,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".sln", ".sln", "{72C76ECD-9
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Steinpilz.DevFlow.Fake5", "src\app\Steinpilz.DevFlow.Fake5\Steinpilz.DevFlow.Fake5.fsproj", "{26F252C1-8843-4E3A-95DA-5F1330FF93F7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Steinpilz.DevFlow.Fake5.Tests", "src\test\Steinpilz.DevFlow.Fake5.Tests\Steinpilz.DevFlow.Fake5.Tests.csproj", "{D45C1A4B-87E2-4677-B303-867E61EE0C85}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -25,6 +27,10 @@ Global
 		{26F252C1-8843-4E3A-95DA-5F1330FF93F7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{26F252C1-8843-4E3A-95DA-5F1330FF93F7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{26F252C1-8843-4E3A-95DA-5F1330FF93F7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D45C1A4B-87E2-4677-B303-867E61EE0C85}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D45C1A4B-87E2-4677-B303-867E61EE0C85}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D45C1A4B-87E2-4677-B303-867E61EE0C85}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D45C1A4B-87E2-4677-B303-867E61EE0C85}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

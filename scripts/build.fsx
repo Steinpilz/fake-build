@@ -18,10 +18,8 @@ open Fake.IO.Globbing.Operators
 open Steinpilz.DevFlow.Fake
 
 let param = Lib.setup <| fun p -> 
-    { p with 
-        AppProjects = !!"src/**/*.fsproj"
-        TestProjects = !!"test/**/*.fsproj"
-        PublishProjects = !! "src/**/*.fsproj"
+    { p with
+        PublishProjects = p.AppProjects
         NuGetFeed = 
             { p.NuGetFeed with 
                 ApiKey = Environment.environVarOrFail <| "NUGET_API_KEY" |> Some

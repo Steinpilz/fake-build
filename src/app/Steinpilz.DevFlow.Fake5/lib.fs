@@ -60,8 +60,8 @@ let defaultBuildParams =
         AssemblyInfoFiles = !!"**/*AssemblyInfo.cs" ++ "**/AssemblyInfo.fs"
         DegreeOfParallelism = 1
         
-        AppProjects = !!"src/app/**/*.*sproj"
-        TestProjects = !!"src/test/**/*Tests.*sproj"
+        AppProjects = !!"src/app/**/*.*proj"
+        TestProjects = !!"src/test/**/*Tests.*proj"
         PublishProjects = !!"not-found"
 
         VersionPrefix = Environment.environVarOrDefault "vp" ""
