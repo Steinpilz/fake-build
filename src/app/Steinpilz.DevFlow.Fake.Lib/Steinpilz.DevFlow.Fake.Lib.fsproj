@@ -4,7 +4,7 @@
   
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <TargetFramework>net462</TargetFramework>
+    <TargetFramework>netstandard2.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,10 +14,22 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FAKE" Version="4.64.17" />
-    <PackageReference Include="FAKE.Lib" Version="4.64.13" />
+    <PackageReference Include="Fake.Core.Environment" Version="5.16.1" />
+    <PackageReference Include="Fake.Core.SemVer" Version="5.16.1" />
+    <PackageReference Include="Fake.Core.Target" Version="5.16.1" />
+    <PackageReference Include="Fake.Core.Trace" Version="5.16.1" />
+    <PackageReference Include="Fake.DotNet.AssemblyInfoFile" Version="5.16.1" />
+    <PackageReference Include="Fake.DotNet.Cli" Version="5.16.1" />
+    <PackageReference Include="Fake.DotNet.MsBuild" Version="5.16.1" />
+    <PackageReference Include="Fake.DotNet.Testing.XUnit2" Version="5.16.1" />
+    <PackageReference Include="Fake.IO.FileSystem" Version="5.16.1" />
+    <PackageReference Include="Fake.Tools.Git" Version="5.16.1" />
     <PackageReference Include="FSharp.Collections.ParallelSeq" Version="1.1.2" />
-    <PackageReference Include="FSharp.Core" Version="4.6.2" />
+    <PackageReference Include="FSharp.Core" Version="4.7.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Update="System.ValueTuple" Version="4.5.0" />
   </ItemGroup>
 
 </Project>

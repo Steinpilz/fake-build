@@ -1,10 +1,10 @@
 ﻿module Steinpilz.DevFlow.Fake.Pub
 
 open System
-open Fake
-open Fake.Git
-open Fake.SemVerHelper
-
+open Fake.Core
+open Fake.IO
+open Fake.IO.FileSystemOperators
+open Fake.Tools
 
 type PubParams = {
     WorkingDir: string
@@ -12,7 +12,7 @@ type PubParams = {
 }
     
 let defaultParams = {
-    WorkingDir = "." |> FullName
+    WorkingDir = "." |> Path.getFullName
     Args =
         Environment.GetCommandLineArgs()
         |> Seq.skipWhile (fun x -> x.ToLower() <> "pub")
@@ -32,9 +32,9 @@ let envPath dir = dir @@ envFileName
 
 let envRead dir =
     let path = envPath dir
-    let fileLines = ReadFile path
+    let fileLines = File.read path
     fileLines
-        |> Seq.map (fun x -> x |> split '=')
+        |> Seq.map (fun x -> x |> String.split '=')
         |> Seq.filter (fun x -> List.length x = 2)
         |> Seq.mapi (fun i x -> (x |> List.item 0, (x |> List.item 1, i)))
         |> Map.ofSeq
@@ -46,7 +46,7 @@ let envWrite dir env =
         |> Map.toSeq
         |> Seq.sortBy (fun (_, (_, i)) -> i)
         |> Seq.map (fun (k, (v, _)) -> k + "=" + v)
-    WriteFile path fileLines
+    File.writeNew path fileLines
 
 let envTryGet k env =
     env |> Map.tryFind k |> Option.map fst
@@ -59,14 +59,17 @@ let envSet k v env =
     env |> Map.add k (v, pos)
 
 
-let normPreRelease ver =
-    let num = ver.Number
+let prereleaseNumber prerelease =
+    prerelease.Values |> List.map(function Numeric num -> Some num | _ -> None) |> List.choose id |> List.tryHead
+
+let normPreRelease (ver: PreRelease) =
+    let num = prereleaseNumber ver
     let resStr = num |> Option.map (fun x -> x.ToString "000")
     resStr |> Option.bind PreRelease.TryParse |> Option.get
 
-let incPreRelease ver =
-    let num = ver.Number |> Option.get |> ((+) 1)
-    { ver with Number = Some(num) } |> normPreRelease
+let incPreRelease (ver: PreRelease) =
+    let num = ver |> prereleaseNumber |> Option.get |> ((+) (bigint 1)) |> Numeric
+    { ver with Values = [num] } |> normPreRelease
 
 let zeroPreRelease = PreRelease.TryParse "001" |> Option.get
 
@@ -83,19 +86,19 @@ let optionDefaultWith value =
     | _ -> value()
 
 
-let incPrev ver =
+let incPrev (ver: SemVerInfo) =
     { ver with PreRelease = ver.PreRelease |> Option.map incPreRelease |> optionDefaultValue zeroPreRelease |> Some }
 
-let incPatch ver =
-    { ver with PreRelease = None; Patch = ver.Patch + 1 }
+let incPatch (ver: SemVerInfo) =
+    { ver with PreRelease = None; Patch = ver.Patch + 1u }
 
-let incMinor ver =
-    { ver with PreRelease = None; Patch = 0; Minor = ver.Minor + 1; }
+let incMinor (ver: SemVerInfo) =
+    { ver with PreRelease = None; Patch = 0u; Minor = ver.Minor + 1u; }
 
-let incMajor ver =
-    { ver with PreRelease = None; Patch = 0; Minor = 0; Major = ver.Major + 1; }
+let incMajor (ver: SemVerInfo) =
+    { ver with PreRelease = None; Patch = 0u; Minor = 0u; Major = ver.Major + 1u; }
 
-let resetPrev ver =
+let resetPrev (ver: SemVerInfo) =
     { ver with PreRelease = None }
 
 let verToTagStr ver =
@@ -105,9 +108,9 @@ let verToVp withMv ver =
     match withMv with
     | true -> sprintf "%%mv%%.%d.%d" ver.Minor ver.Patch
     | false -> sprintf "%d.%d.%d" ver.Major ver.Minor ver.Patch
-    
+
 let verToVs ver =
-    ver.PreRelease |> Option.bind (fun x -> x.Number) |> Option.map(fun x -> sprintf "preview%03d" x) |> optionDefaultValue ""
+    ver.PreRelease |> Option.bind prereleaseNumber |> Option.map(fun x -> sprintf "preview%03A" x) |> optionDefaultValue ""
 
 
 // can be maded more secure (mv existence and vp=%mv%... check)
@@ -123,11 +126,11 @@ let vsToFakeFormat (s: string) =
 let readVerFromEnv env =
     let segs = [
         env |> envTryGet "mv"
-        Some(env |> envGet "vp" |> replace "%mv%." "")
+        Some(env |> envGet "vp" |> String.replace "%mv%." "")
         Some(env |> envGet "vs" |> vsToFakeFormat)
     ]
     let verStr = segs |> Seq.filter Option.isSome |> Seq.map Option.get |> String.concat "."
-    SemVerHelper.parse verStr
+    SemVer.parse verStr
 
 let writeVerToEnv env ver =
     let hasMv = env |> Map.containsKey "mv"
@@ -141,25 +144,25 @@ let writeVerToEnv env ver =
 
 
 let gitCommitAmend rep = 
-    gitCommand rep "commit --amend --no-edit"
+    Git.CommandHelper.gitCommand rep "commit --amend --no-edit"
 
 let gitCommit rep msg = 
-    gitCommand rep (sprintf "commit -m \"%s\"" msg)
+    Git.CommandHelper.gitCommand rep (sprintf "commit -m \"%s\"" msg)
 
 let gitGetLastTag rep =
-    let res = getGitResult rep "git describe --abbrev=0 --tags"
-    assert (res.Count < 2)
+    let res = Git.CommandHelper.getGitResult rep "git describe --abbrev=0 --tags"
+    assert (List.length res < 2)
     Seq.tryHead res
 
-let gitFetch rep = gitCommand rep "fetch --tags"
+let gitFetch rep = Git.CommandHelper.gitCommand rep "fetch --tags"
 
-let gitPush rep = gitCommand rep "push --tags"
+let gitPush rep = Git.CommandHelper.gitCommand rep "push --tags"
 
-let gitIsStageEmpty rep = (getGitResult rep "diff --staged").Count = 0
+let gitIsStageEmpty rep = (Git.CommandHelper.getGitResult rep "diff --staged") |> List.length = 0
 
 let gitIsHeadTagged rep =
-    let tags = getGitResult rep "tag --points-at HEAD"
-    tags.Count > 0
+    let tags = Git.CommandHelper.getGitResult rep "tag --points-at HEAD"
+    List.length tags > 0
 
 let gitEnsureStageEmpty msg rep = 
     if not (gitIsStageEmpty rep) then failwith msg
@@ -170,8 +173,8 @@ let gitEnsureStageNonempty msg rep =
 type GitSyncStatus = { Behind: bool; Ahead: bool; }
 
 let gitGetSyncStatus rep =
-    let status = getGitResult rep "status -sb"
-    assert (status.Count > 0)
+    let status = Git.CommandHelper.getGitResult rep "status -sb"
+    assert (List.length status > 0)
     let diff = (status.Item 0).Split([| '[' |], 2) |> Array.tryItem 1
     match diff with
     | Some x -> { Behind = x.Contains("behind"); Ahead = x.Contains("ahead"); }
@@ -208,7 +211,7 @@ let parseArgs args =
     let fArg =
         args
         |> List.tryItem 0
-        |> Option.map toLower
+        |> Option.map String.toLower
     
     match fArg with
     | None -> Help
@@ -252,42 +255,42 @@ let makeVerInc verInc ver =
 let setup setParams =
     let p = setParams defaultParams
 
-    Target "Pub" <| (fun _ -> 
+    Target.create "Pub" <| (fun _ -> 
         let rep = p.WorkingDir
         let cmd = parseArgs p.Args
 
         match cmd with
         | Help -> 
-            log "# How to use Pub"
-            log "Well, if you want to make a preview just type 'pub prePatch', 'pub preMinor', 'pub preMajor', it will fetch the upstream (i.e. the remote branch) for validation and will not run tests."
-            log "All commands are case-insensitive, so a big letter just for readibility."
-            log "Ok, now you have preview001, you want to make next preview, you can just type 'pub pre' for that, it does not fetch the upstream and does not run tests."
-            log "If you think that a preview should be released, just type 'pub release', it will fetch the upstream, run tests, set a version tag and make a push (with tags) to the upstream."
-            log "It's important that all commands run 'Publish' target to deploy each version to NuGet."
-            log "Also you can shorten 'pub preXyz' with just 'pub xyz' (e.g. 'pub patch') if you do not need a preview of course."
-            log "You can use a prefix only, patch=pat, minor=min, major=maj, release=rel."
-            log ""
-            log "# Important info for understanding the workflow"
-            log "Brief: Pub realization assumes that you'll make some changes, stage them, then call Pub with a commit message; then you can use Pub without a message to just change a version of the last commit (and deploy it like all cmds do of course)."
-            log "You can pass a commit message, so 'pub patch \"some msg\"' will create a commit (it will not call smth like 'git add .', you should do it yourself)."
-            log "If a commit message is passed then Pub will always create a new commit and it will always amend the last commit if a commit message is not passed."
-            log "Because of that a stage must be nonempty if a commit message is passed and it must be empty if a commit message is not passed."
+            Trace.log "# How to use Pub"
+            Trace.log "Well, if you want to make a preview just type 'pub prePatch', 'pub preMinor', 'pub preMajor', it will fetch the upstream (i.e. the remote branch) for validation and will not run tests."
+            Trace.log "All commands are case-insensitive, so a big letter just for readibility."
+            Trace.log "Ok, now you have preview001, you want to make next preview, you can just type 'pub pre' for that, it does not fetch the upstream and does not run tests."
+            Trace.log "If you think that a preview should be released, just type 'pub release', it will fetch the upstream, run tests, set a version tag and make a push (with tags) to the upstream."
+            Trace.log "It's important that all commands run 'Publish' target to deploy each version to NuGet."
+            Trace.log "Also you can shorten 'pub preXyz' with just 'pub xyz' (e.g. 'pub patch') if you do not need a preview of course."
+            Trace.log "You can use a prefix only, patch=pat, minor=min, major=maj, release=rel."
+            Trace.log ""
+            Trace.log "# Important info for understanding the workflow"
+            Trace.log "Brief: Pub realization assumes that you'll make some changes, stage them, then call Pub with a commit message; then you can use Pub without a message to just change a version of the last commit (and deploy it like all cmds do of course)."
+            Trace.log "You can pass a commit message, so 'pub patch \"some msg\"' will create a commit (it will not call smth like 'git add .', you should do it yourself)."
+            Trace.log "If a commit message is passed then Pub will always create a new commit and it will always amend the last commit if a commit message is not passed."
+            Trace.log "Because of that a stage must be nonempty if a commit message is passed and it must be empty if a commit message is not passed."
         | Pub pub ->
             let verInc = pub.VerInc
             let msg = pub.Msg
-        
+
             let isRelease =
                 match verInc with
                 | PreviewNew _ | PreviewNext -> false
                 | ReleaseInc _ | PreviewRelease -> true
 
-            log "init"
+            Trace.log "init"
             let oldEnv = envRead rep
             let oldVer = oldEnv |> readVerFromEnv
             let newVer = oldVer |> makeVerInc verInc
             let newEnv = newVer |> writeVerToEnv oldEnv
-        
-            log "validation"
+
+            Trace.log "validation"
             match verInc with
             | PreviewNext -> ()
             | _ ->  rep |> gitFetch
@@ -303,27 +306,27 @@ let setup setParams =
                     rep |> gitEnsureStageEmpty "there are some changes (the stage is not empty), add a commit message or create a commit manually"
                 | false ->
                     failwith "the last commit exists on the upstream, add a commit message or create a commit manually"
-        
-            if isRelease then
-                log "tests"
-                TargetHelper.run "Test"
 
-            log ".env updating, commiting"
+            if isRelease then
+                Trace.log "tests"
+                Target.runOrDefault "Test"
+
+            Trace.log ".env updating, commiting"
             newEnv |> envWrite rep
-            envFileName |> StageFile rep |> ignore
+            envFileName |> Git.Staging.stageFile rep |> ignore
             match msg with
             | Some msg ->
                 gitCommit rep msg
             | None ->
                 gitCommitAmend rep
-        
+
             if isRelease then
-                log "tagging, pushing"
-                verToTagStr newVer |> tag rep
+                Trace.log "tagging, pushing"
+                verToTagStr newVer |> Git.Branches.tag rep
                 rep |> gitPush
 
-            log "publishing"
-            TargetHelper.run "Publish"
+            Trace.log "publishing"
+            Target.runOrDefault "Publish"
 
             ()
     )
