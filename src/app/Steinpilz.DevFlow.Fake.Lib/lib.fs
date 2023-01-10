@@ -40,7 +40,11 @@ type BuildParams = {
     VersionSuffix: string
 
     NuGetFeed: NuGetFeed
+    NuGetSymbolFeed: NuGetFeed
   //  NugetTool: bool
+
+    IncludeSymbols: bool
+    EmbedSources: bool
 }
 
 
@@ -91,7 +95,15 @@ let defaultBuildParams =
                 EndpointUrl = "https://api.nuget.org/v3/index.json"
                 ApiKey = None
             }
-      //  NugetTool = false
+        NuGetSymbolFeed =
+            {
+                EndpointUrl = "https://api.nuget.org/v3/index.json"
+                ApiKey = None
+            }
+        //  NugetTool = false
+
+        IncludeSymbols = true
+        EmbedSources = true
     }
 
 let setup setParams =
@@ -190,12 +202,12 @@ let setup setParams =
         let suffixArg = match versionSuffix with
                         | None -> ""
                         | Some x -> sprintf " -suffix %s" x
-                
-        let toolArg = if false then "-Tool " else "-IncludeReferencedProjects "
+
+        let toolArg = (if param.IncludeSymbols then "-Symbols " else "")
 
         let versionArg = if param.SetVersionForPack then sprintf "-version %s%s" mainVersion suffixArg else ""
         let globalVersionArg = if param.SetVersionForPack then sprintf "-properties globalversion=%s" fullVersion else ""
-        
+
         projects
             |> Seq.iter (fun (projPath) ->
                 let args = 
@@ -204,7 +216,7 @@ let setup setParams =
                         versionArg 
                         toolArg
                         globalVersionArg
-                
+
                 runNuGet args <| param.PublishDir |> ignore
                 ()
             )
@@ -219,7 +231,8 @@ let setup setParams =
                     "DebugType", "Full"
                     "Configuration", "Release"
                     "Platform", "Any CPU"
-                    
+                    "IncludeSymbols", param.IncludeSymbols.ToString()
+                    "EmbedAllSources", param.EmbedSources.ToString()
                 ] @
                 if not param.SetVersionForPack then []
                 else [
@@ -247,6 +260,12 @@ let setup setParams =
                 OutputPath = param.PublishDir
                 VersionSuffix = vs
                 AdditionalArgs =
+                    (
+                    if not param.IncludeSymbols then []
+                    else ["--include-symbols"]
+                    @
+                    ["/p:EmbedAllSources=" + param.EmbedSources.ToString()]
+                    @
                     if not param.SetVersionForPack then []
                     else
                     [
@@ -254,9 +273,9 @@ let setup setParams =
                         "/p:GlobalVersion="+param.VersionPrefix + vs
                         "/p:vs="+vs
                         "/p:vp="+param.VersionPrefix
-                    ]
-            })
-        )
+                    ])
+            }))
+
 
     let packProjects =
         if param.UseNuGetToPack 
@@ -267,29 +286,36 @@ let setup setParams =
             else packProjectsWithMsBuild
 
 
-    let publish() =
-        tracefn "publishing..."
-
-        let parameters = NuGetDefaults()
-        let nugetPackageFiles = 
-            !!(param.PublishDir @@ "*.nupkg")
-            -- (param.PublishDir @@ "*.symbols.nupkg")
-
+    let publish(nugetPackageFiles: FileIncludes, nuGetFeed: NuGetFeed) =
         nugetPackageFiles
         |> PSeq.withDegreeOfParallelism param.DegreeOfParallelism
         |> PSeq.iter (fun file -> 
             let args =
                 sprintf "push %s -Source %s" 
                         file 
-                        param.NuGetFeed.EndpointUrl
+                        nuGetFeed.EndpointUrl
 
             let apiKeyArgs = 
-                match param.NuGetFeed.ApiKey with 
+                match nuGetFeed.ApiKey with 
                 | Some apiKey -> sprintf " -ApiKey %s" apiKey
                 | None -> ""
 
             runNuGet (args + apiKeyArgs) param.PublishDir |> ignore
         )
+
+
+    let publish() =
+        tracefn "publishing..."
+        publish(
+            !!(param.PublishDir @@ "*.nupkg")
+            -- (param.PublishDir @@ "*.symbols.nupkg"),
+            param.NuGetFeed)
+
+        tracefn "publishing symbols..."
+        publish(
+            !!(param.PublishDir @@ "*.symbols.nupkg"),
+            param.NuGetSymbolFeed)
+
 
     // Targets
     Target "Clean" (fun _ -> 
