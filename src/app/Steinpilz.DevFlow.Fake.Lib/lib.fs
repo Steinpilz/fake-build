@@ -203,7 +203,9 @@ let setup setParams =
                         | None -> ""
                         | Some x -> sprintf " -suffix %s" x
 
-        let toolArg = (if param.IncludeSymbols then "-Symbols " else "")
+        let toolArg = 
+            (if false then "-Tool " else "-IncludeReferencedProjects ") +
+            (if param.IncludeSymbols then "-Symbols " else "")
 
         let versionArg = if param.SetVersionForPack then sprintf "-version %s%s" mainVersion suffixArg else ""
         let globalVersionArg = if param.SetVersionForPack then sprintf "-properties globalversion=%s" fullVersion else ""
