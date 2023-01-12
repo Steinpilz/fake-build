@@ -6,7 +6,7 @@
 open Steinpilz.DevFlow.Fake
 open Fake
 
-let param = Lib.setup <| fun p -> 
+let param = Lib.setup <| fun p ->
     { p with 
         AppProjects = !!"src/**/*.fsproj"
         TestProjects = !!"test/**/*.fsproj"
@@ -18,6 +18,8 @@ let param = Lib.setup <| fun p ->
             { p.NuGetFeed with 
                 ApiKey = environVarOrFail <| "NUGET_API_KEY" |> Some
             }
+        IncludeSymbols = false
+        EmbedSources = false
     }
 
 let packTool version =
