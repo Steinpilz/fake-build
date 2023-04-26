@@ -288,7 +288,7 @@ let setup setParams =
                 | Some apiKey -> sprintf " -ApiKey %s" apiKey
                 | None -> ""
 
-            runNuGet (args + apiKeyArgs) param.PublishDir |> ignore
+            runNuGet (args + apiKeyArgs) param.PublishDir |> ensureSuccessExitCode
         )
 
     // Targets
